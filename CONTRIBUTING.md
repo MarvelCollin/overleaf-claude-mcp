@@ -26,6 +26,43 @@ npm run smoke
 
 That creates a throwaway project named `claude-mcp-smoketest`, exercises the full write path in it, and leaves it in your account for inspection. Trash it afterwards.
 
+## Layout
+
+```
+src/
+  index.ts            entry point, builds the server and connects stdio
+  context.ts          session, client, workspace and selection state in one object
+  config.ts           environment driven settings
+  state.ts            which project is selected, persisted across restarts
+  auth/               getting and storing an Overleaf session
+    browsers.ts       finding installed browsers and the default one
+    login.ts          sign in through a browser window
+    import-browser.ts reuse a session from an already signed in browser
+    paste.ts          accept a cookie directly, for machines with no display
+    session.ts        cookie jar and persistence
+  overleaf/           everything that speaks to Overleaf
+    types.ts          every domain type, single source
+    client.ts         HTTP layer and endpoints
+    socket.ts         socket.io handshake for the file tree
+    tree.ts           turning a raw project into a flat path list
+    workspace.ts      read, write, search and the overwrite guard
+    html.ts           reading values out of Overleaf's meta tags
+    latex-log.ts      parsing compiler output
+  tools/              one module per group of MCP tools
+    registry.ts       result helpers and the error boundary
+    projects.ts       status, selection, listing
+    files.ts          reading, searching, downloading
+    editing.ts        writing, renaming, moving, deleting
+    history.ts        versions, diffs, restore
+    compile.ts        compiling, logs, PDF, word count
+  cli/                command line entry points
+    shared.ts         paths, process helpers, session checks, registration
+scripts/
+  verify-startup.mjs  credential free check used by CI
+```
+
+Every tool handler is wrapped in `guard` from `tools/registry.ts`, which turns a thrown error into an MCP error result. Handlers should throw rather than catch, and return `text`, `image` or `failure` from that module.
+
 ## Working on the Overleaf integration
 
 None of the endpoints this project uses are a published API. They were read out of Overleaf's own JavaScript bundle and then verified live. The table in the README lists every one.
