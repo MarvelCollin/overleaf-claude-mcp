@@ -147,14 +147,15 @@ export class OverleafClient {
     pathname: string,
     build: (token: string) => RequestInit,
   ): Promise<Response> {
-    let response = await this.request(pathname, build(await this.csrfToken()));
+    const firstAttempt = build(await this.csrfToken());
+    let response = await this.request(pathname, firstAttempt);
     if (response.status === 403) {
       response = await this.request(pathname, build(await this.csrfToken(true)));
     }
     if (!response.ok) {
       const body = await response.text().catch(() => "");
       throw new OverleafHttpError(
-        `${build("").method ?? "POST"} ${pathname} failed with ${response.status}`,
+        `${firstAttempt.method ?? "POST"} ${pathname} failed with ${response.status}`,
         response.status,
         body.slice(0, 2000),
       );
