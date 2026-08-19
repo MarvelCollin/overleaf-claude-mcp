@@ -95,6 +95,25 @@ async function main(): Promise<void> {
   const guarded = await call("overleaf_delete", { filePath: "access.tex", confirm: false });
   record("delete refuses without confirm", guarded.ok === false, guarded.body.slice(0, 120));
 
+  const history = await call("overleaf_history", { count: 5 });
+  record("overleaf_history", history.ok && /v\d+-\d+/.test(history.body), history.body.split("\n").slice(0, 4).join("\n"));
+
+  const versions = history.body.match(/v(\d+)-(\d+)/);
+  if (versions?.[1] && versions[2]) {
+    const from = Number(versions[1]);
+    const to = Number(versions[2]);
+
+    const past = await call("overleaf_file_at_version", { filePath: "access.tex", version: to });
+    record(
+      "overleaf_file_at_version",
+      past.ok && past.body.includes("documentclass"),
+      past.body.split("\n").slice(0, 3).join("\n"),
+    );
+
+    const diff = await call("overleaf_diff", { filePath: "access.tex", from, to });
+    record("overleaf_diff", diff.ok, diff.body.split("\n").slice(0, 3).join("\n"));
+  }
+
   const compiled = await call("overleaf_compile_log", {});
   record("overleaf_compile_log", compiled.ok, compiled.body.split("\n").slice(0, 6).join("\n"));
 

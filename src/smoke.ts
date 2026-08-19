@@ -52,6 +52,34 @@ async function run(): Promise<void> {
   const edited = await workspace.readText(projectId, "sections/intro.tex");
   check("doc still readable after repeat write", edited.includes("Version TWO"));
 
+  await workspace.readText(projectId, "sections/intro.tex");
+  const introEntry = await workspace.entry(projectId, "sections/intro.tex");
+  await client.uploadFile(
+    projectId,
+    introEntry.parentFolderId,
+    "intro.tex",
+    Buffer.from("\\section{Intro}\nEdited by somebody else.\n", "utf8"),
+    "text/x-tex",
+  );
+  workspace.invalidate(projectId);
+
+  let blocked = false;
+  try {
+    await workspace.writeText(projectId, "sections/intro.tex", "\\section{Intro}\nVersion THREE.\n");
+  } catch (err) {
+    blocked = err instanceof Error && err.message.includes("changed on Overleaf");
+  }
+  check("stale write is refused", blocked);
+
+  await workspace.writeText(
+    projectId,
+    "sections/intro.tex",
+    "\\section{Intro}\nVersion THREE.\n",
+    { force: true },
+  );
+  const forced = await workspace.readText(projectId, "sections/intro.tex");
+  check("forced write goes through", forced.includes("Version THREE"), forced);
+
   await workspace.writeBinary(projectId, "figures/dot.png", PNG_1PX);
   const image = await workspace.readBinary(projectId, "figures/dot.png");
   check("upload and read back a png", image.length === PNG_1PX.length, `${image.length} bytes`);
