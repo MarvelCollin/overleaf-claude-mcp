@@ -37,11 +37,15 @@ Setup runs five steps and prints each one:
 4. Reads one of your real projects back, to prove the connection works
 5. Offers to register the server with Claude Code
 
-### Step 2: Sign in when the browser opens
+### Step 2: Get a session
 
-The browser window is a real Chrome. Sign in the way you normally would, including 2FA. Nothing types your password for you and your password is never read or stored.
+Setup offers two ways.
 
-Once you land on your project list, the window closes on its own and setup continues. Your session cookies are saved to `~/.overleaf-claude-mcp/session.json`.
+**Reuse the login you already have.** If you are already signed in to Overleaf in Brave, Chrome or Edge, setup can lift that session, no typing at all. That browser must be **fully closed** first, because it holds its cookie database open and it has to decrypt its own cookies. Setup launches it against its own profile, reads the Overleaf cookies, and closes it again.
+
+**Or sign in fresh.** Say no to the reuse prompt and a clean browser window opens on the Overleaf login page. Sign in the way you normally would, including 2FA. Nothing types your password for you and your password is never read or stored.
+
+Either way, once the session is confirmed against `/project`, the cookies are saved to `~/.overleaf-claude-mcp/session.json`. A session lasts about five days; `overleaf_status` tells you how long is left.
 
 That file is equivalent to full access to your Overleaf account. It is gitignored, and written with `0600` permissions on macOS and Linux. On Windows those permission bits are ignored, so the file is only as private as your user profile folder. Do not share it and do not commit it.
 
@@ -124,6 +128,8 @@ If Claude does not reach for the tools, the usual causes are: you did not restar
 
 | Tool | Purpose |
 | --- | --- |
+| `overleaf_status` | Session health, expiry, and current selection |
+| `overleaf_project_url` | Browser URL for the selected project |
 | `overleaf_list_projects` | List projects, marking the selected one |
 | `overleaf_select_project` | Pick the active project by id or name |
 | `overleaf_current_project` | Show which project is selected |
@@ -150,7 +156,11 @@ If Claude does not reach for the tools, the usual causes are: you did not restar
 
 ## Troubleshooting
 
-**"No Overleaf session at ..."** — you have not signed in yet, or the session expired. Run `npm run login`, or `setup.cmd` again.
+**Anything failing at all** — ask Claude for `overleaf_status` first. It reports whether the session is alive, when it expires, and what is selected, which usually identifies the problem immediately.
+
+**"No Overleaf session at ..."** — you have not signed in yet, or the session expired. Run `setup.cmd` again.
+
+**Session reuse says your browser is not signed in** — the browser was still running, so its cookie database was locked and could not be read. Close it completely, including any tray icon or "keep running in background" instance, then retry.
 
 **Claude does not see the tools** — you did not restart Claude after registering. Check `claude mcp list`.
 
@@ -176,7 +186,9 @@ npm run read -- "Efficient Reasoning" sections/methodology.tex
 
 The file tree comes from Overleaf's socket connection, because that is the only source that carries entity ids, and ids are what writes need. The handshake is `GET /socket.io/1/?projectId=<id>`, which is socket.io 0.9 framing; the server then pushes `joinProjectResponse` with the whole project including `rootFolder`, doc ids and file hashes. The tree is cached for `OVERLEAF_TREE_TTL_MS` (default 15s) and invalidated after every write.
 
-Text files are read per document, so a read always reflects the current state. `overleaf_grep` reads the project archive instead, so a whole project search costs one request rather than one per file.
+Text files are read per document, so a read always reflects the current state. `overleaf_grep` fetches the documents directly for projects up to `OVERLEAF_DOC_GREP_LIMIT` docs, which avoids downloading the PDFs and figures that a project archive would drag along; past that limit it falls back to one archive download.
+
+`overleaf_read_file` truncates at `OVERLEAF_MAX_READ_CHARS` and tells you how to page through the rest, so asking for a 280,000 character class file does not flood the conversation. Asking for a path that does not exist suggests the closest real ones rather than dumping the whole file list.
 
 Writes go through the upload endpoint. Uploading over an existing name is an in place update: the entity id is preserved, so Overleaf history and anyone else in the document keep working. Missing parent folders are created first.
 
@@ -210,7 +222,9 @@ Confirmed live against a real account, not assumed:
 | --- | --- |
 | `setup.cmd` / `./setup.sh` | Full setup from scratch |
 | `npm run setup` | Same, assuming dependencies are installed |
-| `npm run login` | Re-authenticate only |
+| `npm run login` | Sign in fresh in a clean browser window |
+| `npm run login:browser -- --real-profile` | Reuse the session from your everyday browser, which must be closed |
+| `npm run mcp-check` | Drive the built server as a real MCP client and assert 16 behaviours |
 | `npm run read -- "<project>"` | Inspect a project from the terminal |
 | `npm run recon` | Read-only probe of every endpoint |
 | `npm run smoke` | End-to-end write test in a throwaway project |
@@ -228,6 +242,7 @@ All optional. Copy `.env.example` to `.env` in this folder and it is loaded on s
 | `OVERLEAF_HOME_DIR` | `~/.overleaf-claude-mcp` | Where the session and selection live |
 | `OVERLEAF_SESSION_FILE` | `$OVERLEAF_HOME_DIR/session.json` | |
 | `OVERLEAF_MAX_READ_CHARS` | `60000` | Truncation point for `overleaf_read_file` |
+| `OVERLEAF_DOC_GREP_LIMIT` | `40` | Above this many docs, grep uses the archive |
 | `OVERLEAF_TREE_TTL_MS` | `15000` | File tree cache lifetime |
 | `OVERLEAF_SOCKET_TIMEOUT_MS` | `20000` | |
 | `OVERLEAF_LOGIN_TIMEOUT_MS` | `600000` | How long the login window waits |
