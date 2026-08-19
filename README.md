@@ -42,17 +42,57 @@ Setup runs five steps and prints each one:
 4. Reads one of your real projects back, to prove the connection works
 5. Offers to register the server with Claude Code
 
+> Asking Claude to do the setup for you? Point it at [AGENTS.md](AGENTS.md), which covers every case including headless machines in one pass.
+
 ### Step 2: Get a session
 
-Setup offers two ways.
+Setup offers three ways, and picks based on your machine.
 
-**Reuse the login you already have.** If you are already signed in to Overleaf in Brave, Chrome or Edge, setup can lift that session, no typing at all. That browser must be **fully closed** first, because it holds its cookie database open and it has to decrypt its own cookies. Setup launches it against its own profile, reads the Overleaf cookies, and closes it again.
+**No graphical display**, such as SSH, Docker, a remote sandbox or CI? Setup detects that and asks you to paste a cookie instead of trying to open a window:
 
-**Or sign in fresh.** Say no to the reuse prompt and a clean browser window opens on the Overleaf login page. Sign in the way you normally would, including 2FA. Nothing types your password for you and your password is never read or stored.
+```bash
+OVERLEAF_SESSION_COOKIE="paste_the_value_here" npm run login:paste
+```
+
+Get the value from any browser where you are already signed in: open `https://www.overleaf.com/project`, press F12, go to Application, expand Cookies, select the Overleaf origin, and copy the whole Value of `overleaf_session2`. It is long and starts with `s%3A`. The cookie is verified against Overleaf before anything is saved.
+
+Otherwise setup offers two browser based options.
+
+**Reuse the login you already have.** If you are already signed in to Overleaf in Brave, Chrome, Chromium or Edge, setup can lift that session, no typing at all. That browser must be **fully closed** first, because it holds its cookie database open and it has to decrypt its own cookies. Setup launches it against its own profile, reads the Overleaf cookies, and closes it again.
+
+**Or sign in fresh.** Say no to the reuse prompt and your default browser opens on the Overleaf login page. Sign in the way you normally would, including 2FA. Nothing types your password for you and your password is never read or stored.
 
 Either way, once the session is confirmed against `/project`, the cookies are saved to `~/.overleaf-claude-mcp/session.json`. A session lasts about five days; `overleaf_status` tells you how long is left.
 
 That file is equivalent to full access to your Overleaf account. It is gitignored, and written with `0600` permissions on macOS and Linux. On Windows those permission bits are ignored, so the file is only as private as your user profile folder. Do not share it and do not commit it.
+
+### Setting up over SSH, with no browser on the server
+
+You do not log in on the server. There is nothing to install there and no browser to open. You borrow the login you already have on your own machine.
+
+On your laptop, in a browser already signed in to Overleaf:
+
+1. Open `https://www.overleaf.com/project`
+2. Press F12
+3. Application on Chrome, Brave and Edge, or Storage on Firefox
+4. Expand Cookies, select the Overleaf origin
+5. Click the row named `overleaf_session2` and copy the whole Value
+
+In your SSH session:
+
+```bash
+npm run login:paste
+```
+
+It prompts, you paste, it checks the cookie against Overleaf and saves it. That is the entire process.
+
+If you are running it non interactively, pass the value as an environment variable instead:
+
+```bash
+OVERLEAF_SESSION_COOKIE="s%3A...." npm run login:paste
+```
+
+The cookie is verified before anything is written, so a truncated or expired paste fails immediately with a clear message rather than half working later. It is never printed back to you or written to logs. Sessions last about five days; repeat this when it lapses.
 
 ### Step 3: Let setup register the server
 
@@ -240,7 +280,8 @@ Confirmed live against a real account, not assumed:
 | --- | --- |
 | `setup.cmd` / `./setup.sh` | Full setup from scratch |
 | `npm run setup` | Same, assuming dependencies are installed |
-| `npm run login` | Sign in fresh in a clean browser window |
+| `npm run login` | Sign in fresh, using your default browser |
+| `npm run login:paste` | Paste a session cookie, for machines with no display |
 | `npm run login:browser -- --real-profile` | Reuse the session from your everyday browser, which must be closed |
 | `npm run mcp-check` | Drive the built server as a real MCP client and assert 19 behaviours |
 | `npm run read -- "<project>"` | Inspect a project from the terminal |
