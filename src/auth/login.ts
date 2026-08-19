@@ -1,11 +1,28 @@
 import { chromium, type Browser, type BrowserContext } from "playwright";
 import { BASE_URL, SESSION_COOKIE_NAMES, SESSION_FILE, USER_AGENT } from "../config.js";
 import { SessionStore, type StoredCookie } from "./session.js";
+import { findBrowser, hasDisplay } from "./browsers.js";
 
 const LOGIN_TIMEOUT_MS = Number(process.env.OVERLEAF_LOGIN_TIMEOUT_MS ?? 600_000);
 const POLL_INTERVAL_MS = 1_000;
 
 async function launchBrowser(): Promise<Browser> {
+  if (!hasDisplay()) {
+    throw new Error(
+      'This machine has no graphical display, so a login window cannot open. Use "npm run login:paste" instead, which needs no browser here.',
+    );
+  }
+
+  const preferred = findBrowser();
+  if (preferred) {
+    try {
+      process.stderr.write(`Using your default browser: ${preferred.name}\n`);
+      return await chromium.launch({ headless: false, executablePath: preferred.executable });
+    } catch {
+      process.stderr.write(`Could not start ${preferred.name}, trying another browser.\n`);
+    }
+  }
+
   for (const channel of ["chrome", "msedge"]) {
     try {
       return await chromium.launch({ headless: false, channel });
@@ -13,11 +30,12 @@ async function launchBrowser(): Promise<Browser> {
       continue;
     }
   }
+
   try {
     return await chromium.launch({ headless: false });
   } catch {
     throw new Error(
-      'No usable browser found. Install Chrome or Edge, or run "npx playwright install chromium".',
+      'No usable browser found. Install a browser, run "npx playwright install chromium", or use "npm run login:paste".',
     );
   }
 }

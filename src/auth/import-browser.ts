@@ -4,39 +4,7 @@ import path from "node:path";
 import { chromium } from "playwright";
 import { BASE_URL, SESSION_COOKIE_NAMES, SESSION_FILE, USER_AGENT } from "../config.js";
 import { SessionStore, type StoredCookie } from "./session.js";
-
-interface BrowserProfile {
-  name: string;
-  executable: string;
-  userDataDir: string;
-}
-
-const LOCAL_APP_DATA = process.env.LOCALAPPDATA ?? path.join(os.homedir(), "AppData", "Local");
-const PROGRAM_FILES = process.env.ProgramFiles ?? "C:\\Program Files";
-const PROGRAM_FILES_X86 = process.env["ProgramFiles(x86)"] ?? "C:\\Program Files (x86)";
-
-const CANDIDATES: BrowserProfile[] = [
-  {
-    name: "Brave",
-    executable: path.join(PROGRAM_FILES, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
-    userDataDir: path.join(LOCAL_APP_DATA, "BraveSoftware", "Brave-Browser", "User Data"),
-  },
-  {
-    name: "Brave",
-    executable: path.join(PROGRAM_FILES_X86, "BraveSoftware", "Brave-Browser", "Application", "brave.exe"),
-    userDataDir: path.join(LOCAL_APP_DATA, "BraveSoftware", "Brave-Browser", "User Data"),
-  },
-  {
-    name: "Chrome",
-    executable: path.join(PROGRAM_FILES, "Google", "Chrome", "Application", "chrome.exe"),
-    userDataDir: path.join(LOCAL_APP_DATA, "Google", "Chrome", "User Data"),
-  },
-  {
-    name: "Edge",
-    executable: path.join(PROGRAM_FILES_X86, "Microsoft", "Edge", "Application", "msedge.exe"),
-    userDataDir: path.join(LOCAL_APP_DATA, "Microsoft", "Edge", "User Data"),
-  },
-];
+import { findBrowser, type InstalledBrowser } from "./browsers.js";
 
 const COPIED_FILES = [
   "Local State",
@@ -54,21 +22,7 @@ async function exists(target: string): Promise<boolean> {
   }
 }
 
-async function findProfile(preferred?: string): Promise<BrowserProfile> {
-  for (const candidate of CANDIDATES) {
-    if (preferred && candidate.name.toLowerCase() !== preferred.toLowerCase()) continue;
-    if ((await exists(candidate.executable)) && (await exists(candidate.userDataDir))) {
-      return candidate;
-    }
-  }
-  throw new Error(
-    preferred
-      ? `Could not find ${preferred} with a user profile on this machine.`
-      : "Could not find Brave, Chrome or Edge with a user profile on this machine.",
-  );
-}
-
-async function cloneProfile(profile: BrowserProfile): Promise<string> {
+async function cloneProfile(profile: InstalledBrowser): Promise<string> {
   const target = await fsp.mkdtemp(path.join(os.tmpdir(), "overleaf-mcp-profile-"));
   await fsp.mkdir(path.join(target, "Default", "Network"), { recursive: true });
 
@@ -103,7 +57,14 @@ export async function importBrowserSession(
   preferred?: string,
   useRealProfile = false,
 ): Promise<number> {
-  const profile = await findProfile(preferred);
+  const profile = findBrowser(preferred);
+  if (!profile) {
+    throw new Error(
+      preferred
+        ? `Could not find ${preferred} installed on this machine.`
+        : "Could not find Brave, Chrome, Chromium or Edge installed on this machine.",
+    );
+  }
   process.stderr.write(`Using your ${profile.name} profile.\n`);
 
   if (useRealProfile) {
