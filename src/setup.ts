@@ -7,6 +7,12 @@ import { BASE_URL, SESSION_FILE } from "./config.js";
 import { SessionStore } from "./auth/session.js";
 import { captureSession } from "./auth/login.js";
 import { importBrowserSession } from "./auth/import-browser.js";
+import { parseCookieInput, saveAndVerify } from "./auth/paste.js";
+import { hasDisplay } from "./auth/browsers.js";
+
+const PASTE_HELP = `      1. Open https://www.overleaf.com/project in a browser where you are signed in
+      2. Press F12, go to Application, expand Cookies, select the Overleaf origin
+      3. Copy the whole Value of the cookie named overleaf_session2`;
 import { OverleafClient } from "./overleaf/client.js";
 import { Workspace } from "./overleaf/workspace.js";
 
@@ -73,6 +79,27 @@ async function main(): Promise<void> {
   if (await sessionWorks()) {
     ok(`existing session at ${SESSION_FILE} still works`);
   } else {
+    if (!hasDisplay()) {
+      ok("this machine has no graphical display, so no login window can open");
+      ok("paste your Overleaf session cookie instead:");
+      process.stdout.write(`\n${PASTE_HELP}\n`);
+
+      if (process.stdin.isTTY) {
+        const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+        const pasted = await rl.question("      Paste the cookie value, or press Enter to skip: ");
+        rl.close();
+        if (pasted.trim()) {
+          await saveAndVerify(parseCookieInput(pasted));
+          ok("session verified and saved");
+        }
+      }
+
+      if (!(await sessionWorks())) {
+        throw new Error(
+          'No session yet. Run: OVERLEAF_SESSION_COOKIE="<value>" npm run login:paste',
+        );
+      }
+    } else {
     let imported = false;
     if (await ask("      No session yet. Reuse the Overleaf login from your everyday browser?")) {
       ok("that browser must be fully closed for this to work");
@@ -86,10 +113,11 @@ async function main(): Promise<void> {
     }
 
     if (!imported) {
-      ok("opening a browser so you can sign in");
+      ok("opening your default browser so you can sign in");
       const count = await captureSession();
       ok(`saved ${count} cookies to ${SESSION_FILE}`);
       if (!(await sessionWorks())) throw new Error("Saved a session but Overleaf still refused it.");
+    }
     }
   }
 

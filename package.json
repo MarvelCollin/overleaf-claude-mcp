@@ -38,12 +38,13 @@
     "watch": "tsc --watch",
     "setup": "tsx src/setup.ts",
     "login": "tsx src/auth/login.ts",
+    "login:browser": "tsx src/auth/import-browser.ts",
+    "login:paste": "tsx src/auth/paste.ts",
     "read": "tsx src/read.ts",
     "recon": "tsx src/recon.ts",
     "smoke": "tsx src/smoke.ts",
-    "start": "node dist/index.js",
     "mcp-check": "tsx src/mcp-check.ts",
-    "login:browser": "tsx src/auth/import-browser.ts"
+    "start": "node dist/index.js"
   },
   "engines": {
     "node": ">=20"
