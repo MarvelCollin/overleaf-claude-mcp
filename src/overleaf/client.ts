@@ -1,6 +1,7 @@
 import { BASE_URL, USER_AGENT } from "../config.js";
 import { AuthError, SessionStore } from "../auth/session.js";
 import { listMetaNames, readMeta, readMetaJson } from "./html.js";
+import type { EntityType } from "./tree.js";
 
 export interface ProjectSummary {
   id: string;
@@ -24,7 +25,17 @@ export interface CompileResult {
   outputFiles: CompileOutputFile[];
   compileGroup?: string;
   clsiServerId?: string;
-  raw: unknown;
+}
+
+export interface UploadResult {
+  success: boolean;
+  entity_id?: string;
+  entity_type?: string;
+}
+
+export interface EntitiesResult {
+  project_id: string;
+  entities: { path: string; type: "doc" | "file" }[];
 }
 
 interface RawProject {
@@ -35,7 +46,7 @@ interface RawProject {
   archived?: boolean;
   trashed?: boolean;
   accessLevel?: string;
-  owner?: { email?: string; first_name?: string; last_name?: string };
+  owner?: { email?: string; firstName?: string; lastName?: string };
 }
 
 export class OverleafHttpError extends Error {
@@ -52,7 +63,7 @@ export class OverleafHttpError extends Error {
 function normalizeProject(raw: RawProject): ProjectSummary | null {
   const id = raw.id ?? raw._id;
   if (!id) return null;
-  const ownerName = [raw.owner?.first_name, raw.owner?.last_name].filter(Boolean).join(" ").trim();
+  const ownerName = [raw.owner?.firstName, raw.owner?.lastName].filter(Boolean).join(" ").trim();
   return {
     id,
     name: raw.name ?? "(untitled)",
@@ -72,23 +83,26 @@ export class OverleafClient {
     private readonly baseUrl: string = BASE_URL,
   ) {}
 
+  cookieHeader(): string {
+    return this.session.cookieHeader();
+  }
+
   private resolve(pathname: string): string {
     return pathname.startsWith("http") ? pathname : `${this.baseUrl}${pathname}`;
   }
 
   async request(pathname: string, init: RequestInit = {}): Promise<Response> {
-    const url = this.resolve(pathname);
     const headers = new Headers(init.headers);
     headers.set("cookie", this.session.cookieHeader());
     headers.set("user-agent", USER_AGENT);
     if (!headers.has("accept")) headers.set("accept", "*/*");
-    headers.set("referer", this.baseUrl + "/project");
+    headers.set("referer", `${this.baseUrl}/project`);
 
-    const response = await fetch(url, { ...init, headers, redirect: "follow" });
+    const response = await fetch(this.resolve(pathname), { ...init, headers, redirect: "follow" });
     this.session.applyResponse(response);
     await this.session.persist();
 
-    if (response.status === 401 || /\/login/.test(new URL(response.url).pathname)) {
+    if (response.status === 401 || new URL(response.url).pathname.startsWith("/login")) {
       throw new AuthError(
         `Overleaf redirected to login for ${pathname}. The saved session expired. Run "npm run login".`,
       );
@@ -129,61 +143,82 @@ export class OverleafClient {
     return token;
   }
 
-  async postJson<T>(pathname: string, body: unknown): Promise<T> {
-    const send = async (token: string): Promise<Response> =>
-      await this.request(pathname, {
-        method: "POST",
-        headers: {
-          "content-type": "application/json",
-          accept: "application/json",
-          "x-csrf-token": token,
-        },
-        body: JSON.stringify(body ?? {}),
-      });
-
-    let response = await send(await this.csrfToken());
+  private async withCsrf(
+    pathname: string,
+    build: (token: string) => RequestInit,
+  ): Promise<Response> {
+    let response = await this.request(pathname, build(await this.csrfToken()));
     if (response.status === 403) {
-      response = await send(await this.csrfToken(true));
+      response = await this.request(pathname, build(await this.csrfToken(true)));
     }
     if (!response.ok) {
-      const text = await response.text().catch(() => "");
+      const body = await response.text().catch(() => "");
       throw new OverleafHttpError(
-        `POST ${pathname} failed with ${response.status}`,
+        `${build("").method ?? "POST"} ${pathname} failed with ${response.status}`,
         response.status,
-        text.slice(0, 2000),
+        body.slice(0, 2000),
       );
     }
-    return (await response.json()) as T;
+    return response;
+  }
+
+  private async sendJson<T>(
+    pathname: string,
+    method: "POST" | "DELETE",
+    body?: unknown,
+  ): Promise<T> {
+    const response = await this.withCsrf(pathname, (token) => ({
+      method,
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+        "x-csrf-token": token,
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }));
+    const text = await response.text();
+    if (!text) return {} as T;
+    try {
+      return JSON.parse(text) as T;
+    } catch {
+      return {} as T;
+    }
   }
 
   async listProjects(): Promise<ProjectSummary[]> {
     const html = await this.getHtml("/project");
-    const blob = readMetaJson<{ projects?: RawProject[] } | RawProject[]>(
-      html,
-      "ol-prefetchedProjectsBlob",
-    );
-    const fromBlob = Array.isArray(blob) ? blob : blob?.projects;
-    if (fromBlob?.length) {
-      return fromBlob.map(normalizeProject).filter((p): p is ProjectSummary => p !== null);
-    }
-
-    const legacy = readMetaJson<RawProject[]>(html, "ol-projects");
-    if (legacy?.length) {
-      return legacy.map(normalizeProject).filter((p): p is ProjectSummary => p !== null);
-    }
-
     const token = readMeta(html, "ol-csrfToken");
     if (token) this.csrf = token;
-    const api = await this.postJson<{ projects?: RawProject[] }>("/api/project", {});
+
+    const blob = readMetaJson<{ projects?: RawProject[] }>(html, "ol-prefetchedProjectsBlob");
+    const projects = blob?.projects ?? readMetaJson<RawProject[]>(html, "ol-projects") ?? undefined;
+    if (projects?.length) {
+      return projects.map(normalizeProject).filter((p): p is ProjectSummary => p !== null);
+    }
+
+    const api = await this.sendJson<{ projects?: RawProject[] }>("/api/project", "POST", {});
     if (api.projects?.length) {
       return api.projects.map(normalizeProject).filter((p): p is ProjectSummary => p !== null);
     }
 
     throw new Error(
-      `Could not read a project list from /project or /api/project. Meta tags seen: ${
-        listMetaNames(html).join(", ") || "none"
-      }`,
+      `Could not read a project list. Meta tags seen: ${listMetaNames(html).join(", ") || "none"}`,
     );
+  }
+
+  async createProject(name: string, template = "none"): Promise<{ project_id?: string }> {
+    return await this.sendJson<{ project_id?: string }>("/project/new", "POST", {
+      _csrf: await this.csrfToken(),
+      projectName: name,
+      template,
+    });
+  }
+
+  async entities(projectId: string): Promise<EntitiesResult> {
+    const response = await this.requestOk(`/project/${projectId}/entities`, {
+      headers: { accept: "application/json" },
+    });
+    return (await response.json()) as EntitiesResult;
   }
 
   async downloadProjectZip(projectId: string): Promise<Buffer> {
@@ -193,8 +228,85 @@ export class OverleafClient {
     return Buffer.from(await response.arrayBuffer());
   }
 
-  async projectPage(projectId: string): Promise<string> {
-    return await this.getHtml(`/project/${projectId}`);
+  async readDoc(projectId: string, docId: string): Promise<string> {
+    const response = await this.requestOk(`/project/${projectId}/doc/${docId}/download`, {
+      headers: { accept: "text/plain" },
+    });
+    return await response.text();
+  }
+
+  async readBlob(projectId: string, hash: string): Promise<Buffer> {
+    const response = await this.requestOk(`/project/${projectId}/blob/${hash}`);
+    return Buffer.from(await response.arrayBuffer());
+  }
+
+  async uploadFile(
+    projectId: string,
+    folderId: string,
+    fileName: string,
+    contents: Buffer | Uint8Array,
+    contentType = "application/octet-stream",
+  ): Promise<UploadResult> {
+    const bytes = new Uint8Array(contents);
+    const response = await this.withCsrf(
+      `/project/${projectId}/upload?folder_id=${encodeURIComponent(folderId)}`,
+      (token) => {
+        const form = new FormData();
+        form.set("relativePath", "null");
+        form.set("name", fileName);
+        form.set("type", contentType);
+        form.set("qqfile", new Blob([bytes], { type: contentType }), fileName);
+        return {
+          method: "POST",
+          headers: { accept: "application/json", "x-csrf-token": token },
+          body: form,
+        };
+      },
+    );
+    return (await response.json()) as UploadResult;
+  }
+
+  async createEntity(
+    projectId: string,
+    type: "doc" | "folder",
+    name: string,
+    parentFolderId: string,
+  ): Promise<{ _id?: string; name?: string }> {
+    return await this.sendJson(`/project/${projectId}/${type}`, "POST", {
+      name,
+      parent_folder_id: parentFolderId,
+    });
+  }
+
+  async deleteEntity(projectId: string, type: EntityType, entityId: string): Promise<void> {
+    await this.sendJson(`/project/${projectId}/${type}/${entityId}`, "DELETE");
+  }
+
+  async renameEntity(
+    projectId: string,
+    type: EntityType,
+    entityId: string,
+    name: string,
+  ): Promise<void> {
+    await this.sendJson(`/project/${projectId}/${type}/${entityId}/rename`, "POST", { name });
+  }
+
+  async moveEntity(
+    projectId: string,
+    type: EntityType,
+    entityId: string,
+    folderId: string,
+  ): Promise<void> {
+    await this.sendJson(`/project/${projectId}/${type}/${entityId}/move`, "POST", {
+      folder_id: folderId,
+    });
+  }
+
+  async wordCount(projectId: string): Promise<unknown> {
+    const response = await this.requestOk(`/project/${projectId}/wordcount`, {
+      headers: { accept: "application/json" },
+    });
+    return await response.json();
   }
 
   async compile(
@@ -209,19 +321,18 @@ export class OverleafClient {
     };
     if (options.rootDocId) payload.rootDoc_id = options.rootDocId;
 
-    const raw = await this.postJson<{
+    const raw = await this.sendJson<{
       status?: string;
       outputFiles?: CompileOutputFile[];
       compileGroup?: string;
       clsiServerId?: string;
-    }>(`/project/${projectId}/compile?auto_compile=false`, payload);
+    }>(`/project/${projectId}/compile?auto_compile=false`, "POST", payload);
 
     return {
       status: raw.status ?? "unknown",
       outputFiles: raw.outputFiles ?? [],
       compileGroup: raw.compileGroup,
       clsiServerId: raw.clsiServerId,
-      raw,
     };
   }
 
