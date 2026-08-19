@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import path from "node:path";
 import AdmZip from "adm-zip";
 import type { OverleafClient } from "./client.js";
@@ -53,6 +54,7 @@ export interface GrepHit {
 export class Workspace {
   private trees = new Map<string, { tree: ProjectTree; at: number }>();
   private zips = new Map<string, { zip: AdmZip; at: number }>();
+  private lastSeen = new Map<string, string>();
 
   constructor(private readonly client: OverleafClient) {}
 
@@ -107,7 +109,15 @@ export class Workspace {
     return found;
   }
 
-  async readText(projectId: string, filePath: string): Promise<string> {
+  private seenKey(projectId: string, filePath: string): string {
+    return `${projectId}:${normalizePath(filePath)}`;
+  }
+
+  private static digest(content: string): string {
+    return createHash("sha256").update(content, "utf8").digest("hex");
+  }
+
+  private async readTextRaw(projectId: string, filePath: string): Promise<string> {
     const entry = await this.entry(projectId, filePath);
     if (entry.type === "folder") throw new Error(`"${filePath}" is a folder.`);
     if (entry.type === "doc") return await this.client.readDoc(projectId, entry.id);
@@ -115,6 +125,17 @@ export class Workspace {
       throw new Error(`"${filePath}" is binary. Use overleaf_read_image or overleaf_download_file.`);
     }
     return (await this.readBinary(projectId, filePath)).toString("utf8");
+  }
+
+  async readText(projectId: string, filePath: string): Promise<string> {
+    const content = await this.readTextRaw(projectId, filePath);
+    this.lastSeen.set(this.seenKey(projectId, filePath), Workspace.digest(content));
+    return content;
+  }
+
+  async contentAtVersion(projectId: string, filePath: string, version: number): Promise<string> {
+    const segments = await this.client.diff(projectId, normalizePath(filePath), version, version);
+    return segments.map((s) => s.u ?? s.i ?? "").join("");
   }
 
   async readBinary(projectId: string, filePath: string): Promise<Buffer> {
@@ -158,7 +179,30 @@ export class Workspace {
     return currentId;
   }
 
-  async writeText(projectId: string, filePath: string, contents: string): Promise<string> {
+  async writeText(
+    projectId: string,
+    filePath: string,
+    contents: string,
+    options: { force?: boolean } = {},
+  ): Promise<string> {
+    const key = this.seenKey(projectId, filePath);
+    const seen = this.lastSeen.get(key);
+
+    if (seen && !options.force) {
+      let current: string | null = null;
+      try {
+        current = await this.readTextRaw(projectId, filePath);
+      } catch {
+        current = null;
+      }
+      if (current !== null && Workspace.digest(current) !== seen) {
+        throw new Error(
+          `"${filePath}" changed on Overleaf since you last read it, so writing now would discard those edits. ` +
+            "Read it again to see the current version, or pass force to overwrite anyway.",
+        );
+      }
+    }
+
     const folderId = await this.ensureFolder(projectId, dirname(filePath));
     const name = basename(filePath);
     const result = await this.client.uploadFile(
@@ -170,6 +214,7 @@ export class Workspace {
     );
     this.invalidate(projectId);
     if (!result.success) throw new Error(`Upload of "${filePath}" was rejected by Overleaf.`);
+    this.lastSeen.set(key, Workspace.digest(contents));
     return result.entity_type ?? "doc";
   }
 
