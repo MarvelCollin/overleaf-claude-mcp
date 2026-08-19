@@ -76,8 +76,21 @@ async function main(): Promise<void> {
   const image = await call("overleaf_read_image", { filePath: "figures/fig1.png" });
   record("overleaf_read_image", image.ok && image.images === 1, `${image.images} image block(s)`);
 
+  const status = await call("overleaf_status", {});
+  record("overleaf_status", status.ok && status.body.includes("connection: OK"), status.body);
+
+  const url = await call("overleaf_project_url", {});
+  record("overleaf_project_url", url.ok && url.body.includes("/project/"), url.body);
+
   const missing = await call("overleaf_read_file", { filePath: "does/not/exist.tex" });
   record("missing file reports an error", missing.ok === false, missing.body.slice(0, 120));
+
+  const typo = await call("overleaf_read_file", { filePath: "methodology.tex" });
+  record(
+    "wrong path suggests the right one",
+    typo.ok === false && typo.body.includes("sections/methodology.tex"),
+    typo.body.slice(0, 160),
+  );
 
   const guarded = await call("overleaf_delete", { filePath: "access.tex", confirm: false });
   record("delete refuses without confirm", guarded.ok === false, guarded.body.slice(0, 120));
