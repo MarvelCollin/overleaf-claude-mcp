@@ -1,0 +1,116 @@
+import { spawnSync } from "node:child_process";
+import fsp from "node:fs/promises";
+import path from "node:path";
+import readline from "node:readline/promises";
+import { fileURLToPath } from "node:url";
+import { BASE_URL, SESSION_FILE } from "./config.js";
+import { SessionStore } from "./auth/session.js";
+import { captureSession } from "./auth/login.js";
+import { OverleafClient } from "./overleaf/client.js";
+import { Workspace } from "./overleaf/workspace.js";
+
+const ROOT = path.resolve(fileURLToPath(import.meta.url), "../..");
+const ENTRY = path.join(ROOT, "dist", "index.js");
+
+function step(n: number, label: string): void {
+  process.stdout.write(`\n[${n}/5] ${label}\n`);
+}
+
+function ok(message: string): void {
+  process.stdout.write(`      ${message}\n`);
+}
+
+function run(command: string, args: string[]): boolean {
+  const result = spawnSync(command, args, { cwd: ROOT, stdio: "inherit", shell: true });
+  return result.status === 0;
+}
+
+async function exists(target: string): Promise<boolean> {
+  try {
+    await fsp.access(target);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function ask(question: string): Promise<boolean> {
+  if (!process.stdin.isTTY) return false;
+  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
+  const answer = (await rl.question(`${question} [y/N] `)).trim().toLowerCase();
+  rl.close();
+  return answer === "y" || answer === "yes";
+}
+
+async function sessionWorks(): Promise<boolean> {
+  const store = new SessionStore();
+  const found = await store.load();
+  if (!found || !store.hasSessionCookie()) return false;
+  try {
+    await new OverleafClient(store).listProjects();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function main(): Promise<void> {
+  process.stdout.write(`overleaf-claude-mcp setup\n${ROOT}\n`);
+
+  step(1, "Installing dependencies");
+  if (await exists(path.join(ROOT, "node_modules", "@modelcontextprotocol"))) {
+    ok("already installed");
+  } else if (!run("npm", ["install"])) {
+    throw new Error("npm install failed");
+  }
+
+  step(2, "Building");
+  if (!run("npx", ["tsc"])) throw new Error("Build failed");
+  ok(ENTRY);
+
+  step(3, "Checking your Overleaf session");
+  if (await sessionWorks()) {
+    ok(`existing session at ${SESSION_FILE} still works`);
+  } else {
+    ok("no working session, opening a browser so you can sign in");
+    const count = await captureSession();
+    ok(`saved ${count} cookies to ${SESSION_FILE}`);
+    if (!(await sessionWorks())) throw new Error("Saved a session but Overleaf still refused it.");
+  }
+
+  step(4, "Verifying against Overleaf");
+  const store = new SessionStore();
+  await store.load();
+  const client = new OverleafClient(store);
+  const workspace = new Workspace(client);
+  const projects = (await client.listProjects()).filter((p) => !p.archived && !p.trashed);
+  ok(`${projects.length} project(s) visible on ${BASE_URL}`);
+  const first = projects[0];
+  if (first) {
+    const tree = await workspace.tree(first.id, true);
+    const docs = tree.entries.filter((e) => e.type === "doc").length;
+    const files = tree.entries.filter((e) => e.type === "file").length;
+    ok(`read "${first.name}": ${docs} docs, ${files} binary files`);
+  }
+
+  step(5, "Registering with Claude Code");
+  const command = `claude mcp add overleaf -- node "${ENTRY}"`;
+  const hasClaude = spawnSync("claude", ["--version"], { shell: true, stdio: "ignore" }).status === 0;
+  if (!hasClaude) {
+    ok("claude CLI not found on PATH. Register it yourself with:");
+    ok(command);
+  } else if (await ask("      Register this server with Claude Code now?")) {
+    run("claude", ["mcp", "add", "overleaf", "--", "node", `"${ENTRY}"`])
+      ? ok("registered")
+      : ok(`registration failed, run it yourself: ${command}`);
+  } else {
+    ok(`skipped. Register later with: ${command}`);
+  }
+
+  process.stdout.write("\nSetup complete. Ask Claude to list your Overleaf projects.\n");
+}
+
+main().catch((err) => {
+  process.stderr.write(`\n${err instanceof Error ? err.message : String(err)}\n`);
+  process.exit(1);
+});

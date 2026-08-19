@@ -10,7 +10,9 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
+    "setup": "tsx src/setup.ts",
     "login": "tsx src/auth/login.ts",
+    "read": "tsx src/read.ts",
     "recon": "tsx src/recon.ts",
     "smoke": "tsx src/smoke.ts",
     "start": "node dist/index.js"
