@@ -18,25 +18,36 @@ Detect which case you are in before choosing. On Linux, no display means `DISPLA
 
 ## One shot setup
 
-Run this. Do not narrate each step to the user, just run it.
+Run this and nothing else. Do not narrate each step to the user.
 
 ```bash
-npm install && npm run build && node scripts/verify-startup.mjs
+npm run agent-setup
 ```
 
-If that passes, the server itself is fine. Now check for a session:
+It installs, builds, verifies the server starts, obtains a session by whichever method fits the machine, reads one of the user's real projects to prove the connection, and registers the server with Claude Code at user scope. It is fully non interactive, so it will never hang waiting on a prompt.
+
+Read the last two lines. They are the contract.
+
+```
+RESULT: READY | NEED_COOKIE | FAILED
+NEXT_ACTION: <exactly what to do next>
+```
+
+| RESULT | Exit code | What you do |
+| --- | --- | --- |
+| `READY` | 0 | Tell the user to restart Claude. You are done. |
+| `NEED_COOKIE` | 2 | Ask the user for the cookie once, then rerun with `OVERLEAF_SESSION_COOKIE` set |
+| `FAILED` | 1 | Report the `[fail]` line to the user. Do not improvise a workaround. |
+
+The `NEED_COOKIE` output contains the exact wording to use when asking. Use it verbatim, then:
 
 ```bash
-npx tsx -e "import('./src/auth/session.js').then(async m => { const s = new m.SessionStore(); const f = await s.load(); console.log(f && s.hasSessionCookie() ? 'HAS_SESSION' : 'NO_SESSION'); })"
+OVERLEAF_SESSION_COOKIE="<what they pasted>" npm run agent-setup
 ```
 
-If it prints `HAS_SESSION`, verify it still works and you are done:
+That second run finishes everything. Two commands total, one question to the user, worst case.
 
-```bash
-npm run read -- "" 2>&1 | head -20
-```
-
-If it prints `NO_SESSION`, get one using the table above.
+Pass `--no-browser` if you want to skip the browser methods and go straight to asking for a cookie.
 
 ## When there is no display
 

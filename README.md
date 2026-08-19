@@ -42,7 +42,7 @@ Setup runs five steps and prints each one:
 4. Reads one of your real projects back, to prove the connection works
 5. Offers to register the server with Claude Code
 
-> Asking Claude to do the setup for you? Point it at [AGENTS.md](AGENTS.md), which covers every case including headless machines in one pass.
+> **Want Claude to set this up for you?** Tell it: *"set up overleaf-claude-mcp, read AGENTS.md first"*. It runs `npm run agent-setup`, which handles everything non interactively and asks you at most one question. [AGENTS.md](AGENTS.md) covers every case including headless servers.
 
 ### Step 2: Get a session
 
@@ -280,6 +280,7 @@ Confirmed live against a real account, not assumed:
 | --- | --- |
 | `setup.cmd` / `./setup.sh` | Full setup from scratch |
 | `npm run setup` | Same, assuming dependencies are installed |
+| `npm run agent-setup` | Non interactive setup for agents, prints `RESULT` and `NEXT_ACTION` |
 | `npm run login` | Sign in fresh, using your default browser |
 | `npm run login:paste` | Paste a session cookie, for machines with no display |
 | `npm run login:browser -- --real-profile` | Reuse the session from your everyday browser, which must be closed |
