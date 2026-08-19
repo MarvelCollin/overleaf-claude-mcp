@@ -18,7 +18,8 @@ export function parseLatexLog(log: string): LogEntry[] {
     for (const match of line.matchAll(/\((\.\/[^\s()]+|\/[^\s()]+)/g)) {
       if (match[1]) fileStack.push(match[1]);
     }
-    for (const _ of line.matchAll(/\)/g)) fileStack.pop();
+    const closers = line.match(/\)/g)?.length ?? 0;
+    for (let k = 0; k < closers; k += 1) fileStack.pop();
 
     if (line.startsWith("! ")) {
       const detail = [line.slice(2).trim()];

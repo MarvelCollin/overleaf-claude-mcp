@@ -1,9 +1,10 @@
+#!/usr/bin/env node
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
-import { BASE_URL } from "./config.js";
+import { BASE_URL, MAX_READ_CHARS } from "./config.js";
 import { AuthError, SessionStore } from "./auth/session.js";
 import { OverleafClient, type ProjectSummary } from "./overleaf/client.js";
 import { Workspace, isImage, mimeFor } from "./overleaf/workspace.js";
@@ -163,13 +164,48 @@ server.registerTool(
   "overleaf_read_file",
   {
     title: "Read a text file",
-    description: "Read a LaTeX or other text file from the project.",
-    inputSchema: { filePath: z.string(), projectId: z.string().optional() },
+    description:
+      "Read a LaTeX or other text file. Long files are truncated; use startLine and endLine to page through them.",
+    inputSchema: {
+      filePath: z.string(),
+      startLine: z.number().int().positive().optional(),
+      endLine: z.number().int().positive().optional(),
+      projectId: z.string().optional(),
+    },
   },
-  async ({ filePath, projectId }) => {
+  async ({ filePath, startLine, endLine, projectId }) => {
     try {
       const id = await activeProject(projectId);
-      return text(await workspace.readText(id, filePath));
+      const content = await workspace.readText(id, filePath);
+      const allLines = content.split("\n");
+
+      if (startLine || endLine) {
+        const from = Math.max(1, startLine ?? 1);
+        const to = Math.min(allLines.length, endLine ?? allLines.length);
+        if (from > allLines.length) {
+          return failure(
+            new Error(`${filePath} has ${allLines.length} lines, so line ${from} does not exist.`),
+          );
+        }
+        const slice = allLines.slice(from - 1, to).join("\n");
+        return text(
+          `${filePath} lines ${from}-${to} of ${allLines.length}\n\n${slice.slice(0, MAX_READ_CHARS)}`,
+        );
+      }
+
+      if (content.length <= MAX_READ_CHARS) return text(content);
+
+      let cutoff = 0;
+      let shown = 0;
+      while (cutoff < allLines.length && shown + (allLines[cutoff]?.length ?? 0) + 1 <= MAX_READ_CHARS) {
+        shown += (allLines[cutoff]?.length ?? 0) + 1;
+        cutoff += 1;
+      }
+      return text(
+        `${filePath} is ${content.length} chars over ${allLines.length} lines. Showing lines 1-${cutoff}.\n` +
+          `Read the rest with startLine ${cutoff + 1}, or search it with overleaf_grep.\n\n` +
+          allLines.slice(0, cutoff).join("\n"),
+      );
     } catch (err) {
       return failure(err);
     }
@@ -458,9 +494,21 @@ server.registerTool(
       const id = await activeProject(projectId);
       const result = await client.compile(id);
       const logFile = result.outputFiles.find((f) => f.path.endsWith("output.log"));
-      if (!logFile) return text(`status: ${result.status}\nNo output.log was produced.`);
+      if (!logFile) {
+        return text(
+          `status: ${result.status}\nNo output.log was produced. Output files: ${
+            result.outputFiles.map((f) => f.path).join(", ") || "(none)"
+          }`,
+        );
+      }
       const log = (await client.fetchOutput(logFile.url, result.clsiServerId)).toString("utf8");
-      return text(`status: ${result.status}\n\n${summarizeLog(parseLatexLog(log))}`);
+      const entries = parseLatexLog(log);
+      const summary = summarizeLog(entries);
+      if (entries.some((e) => e.level === "error") || result.status === "success") {
+        return text(`status: ${result.status}\n\n${summary}`);
+      }
+      const tail = log.split(/\r?\n/).slice(-60).join("\n");
+      return text(`status: ${result.status}\n\n${summary}\n\nLast 60 log lines:\n${tail}`);
     } catch (err) {
       return failure(err);
     }
