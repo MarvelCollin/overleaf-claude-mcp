@@ -43,7 +43,7 @@ The browser window is a real Chrome. Sign in the way you normally would, includi
 
 Once you land on your project list, the window closes on its own and setup continues. Your session cookies are saved to `~/.overleaf-claude-mcp/session.json`.
 
-That file is equivalent to full access to your Overleaf account. It is gitignored and written with `0600` permissions. Do not share it and do not commit it.
+That file is equivalent to full access to your Overleaf account. It is gitignored, and written with `0600` permissions on macOS and Linux. On Windows those permission bits are ignored, so the file is only as private as your user profile folder. Do not share it and do not commit it.
 
 ### Step 3: Let setup register the server
 
@@ -128,7 +128,7 @@ If Claude does not reach for the tools, the usual causes are: you did not restar
 | `overleaf_select_project` | Pick the active project by id or name |
 | `overleaf_current_project` | Show which project is selected |
 | `overleaf_list_files` | Full file and folder tree |
-| `overleaf_read_file` | Read a LaTeX or other text file |
+| `overleaf_read_file` | Read a text file, with `startLine` and `endLine` paging |
 | `overleaf_read_image` | View a figure inline |
 | `overleaf_download_file` | Save any file, including PDFs, locally |
 | `overleaf_grep` | Regex search across the project |
@@ -220,17 +220,17 @@ Confirmed live against a real account, not assumed:
 
 ## Configuration
 
-All optional. See `.env.example`.
+All optional. Copy `.env.example` to `.env` in this folder and it is loaded on startup.
 
-| Variable | Default |
-| --- | --- |
-| `OVERLEAF_BASE_URL` | `https://www.overleaf.com` |
-| `OVERLEAF_HOME_DIR` | `~/.overleaf-claude-mcp` |
-| `OVERLEAF_SESSION_FILE` | `$OVERLEAF_HOME_DIR/session.json` |
-| `OVERLEAF_CACHE_DIR` | `$OVERLEAF_HOME_DIR/cache` |
-| `OVERLEAF_TREE_TTL_MS` | `15000` |
-| `OVERLEAF_SOCKET_TIMEOUT_MS` | `20000` |
-| `OVERLEAF_LOGIN_TIMEOUT_MS` | `600000` |
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `OVERLEAF_BASE_URL` | `https://www.overleaf.com` | Point at a self-hosted instance |
+| `OVERLEAF_HOME_DIR` | `~/.overleaf-claude-mcp` | Where the session and selection live |
+| `OVERLEAF_SESSION_FILE` | `$OVERLEAF_HOME_DIR/session.json` | |
+| `OVERLEAF_MAX_READ_CHARS` | `60000` | Truncation point for `overleaf_read_file` |
+| `OVERLEAF_TREE_TTL_MS` | `15000` | File tree cache lifetime |
+| `OVERLEAF_SOCKET_TIMEOUT_MS` | `20000` | |
+| `OVERLEAF_LOGIN_TIMEOUT_MS` | `600000` | How long the login window waits |
 
 ## Limits
 
