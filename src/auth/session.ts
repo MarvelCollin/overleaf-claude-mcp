@@ -126,6 +126,14 @@ export class SessionStore {
   get filePath(): string {
     return this.file;
   }
+
+  sessionExpiry(): Date | null {
+    for (const name of SESSION_COOKIE_NAMES) {
+      const cookie = this.cookies.get(name);
+      if (cookie?.expires) return new Date(cookie.expires * 1000);
+    }
+    return null;
+  }
 }
 
 export async function loadSessionOrThrow(file?: string): Promise<SessionStore> {

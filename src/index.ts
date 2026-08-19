@@ -143,6 +143,68 @@ server.registerTool(
 );
 
 server.registerTool(
+  "overleaf_status",
+  {
+    title: "Connection status",
+    description:
+      "Report whether the Overleaf session is alive, when it expires, and which project is selected.",
+    inputSchema: {},
+  },
+  async () => {
+    try {
+      const found = await session.load();
+      if (!found || !session.hasSessionCookie()) {
+        return text(
+          `No session at ${session.filePath}.\nRun "npm run setup" in the overleaf-claude-mcp folder.`,
+        );
+      }
+      sessionLoaded = true;
+
+      const lines: string[] = [`session file: ${session.filePath}`];
+      const expiry = session.sessionExpiry();
+      if (expiry) {
+        const days = (expiry.getTime() - Date.now()) / 86_400_000;
+        lines.push(`expires: ${expiry.toISOString()} (${days.toFixed(1)} days)`);
+      }
+
+      try {
+        const projects = await client.listProjects();
+        lines.push(`connection: OK, ${projects.length} project(s) visible on ${BASE_URL}`);
+      } catch (err) {
+        lines.push(`connection: FAILED. ${err instanceof Error ? err.message : String(err)}`);
+      }
+
+      await state.load();
+      lines.push(
+        state.current
+          ? `selected project: ${state.current.name} (${state.current.id})`
+          : "selected project: none",
+      );
+      return text(lines.join("\n"));
+    } catch (err) {
+      return failure(err);
+    }
+  },
+);
+
+server.registerTool(
+  "overleaf_project_url",
+  {
+    title: "Project URL",
+    description: "Return the browser URL for the selected project, optionally for one file.",
+    inputSchema: { projectId: z.string().optional() },
+  },
+  async ({ projectId }) => {
+    try {
+      const id = await activeProject(projectId);
+      return text(`${BASE_URL}/project/${id}`);
+    } catch (err) {
+      return failure(err);
+    }
+  },
+);
+
+server.registerTool(
   "overleaf_list_files",
   {
     title: "List project files",
