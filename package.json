@@ -36,15 +36,15 @@
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
-    "setup": "tsx src/setup.ts",
-    "agent-setup": "tsx src/agent-setup.ts",
+    "setup": "tsx src/cli/setup.ts",
+    "agent-setup": "tsx src/cli/agent-setup.ts",
     "login": "tsx src/auth/login.ts",
     "login:browser": "tsx src/auth/import-browser.ts",
     "login:paste": "tsx src/auth/paste.ts",
-    "read": "tsx src/read.ts",
-    "recon": "tsx src/recon.ts",
-    "smoke": "tsx src/smoke.ts",
-    "mcp-check": "tsx src/mcp-check.ts",
+    "read": "tsx src/cli/read.ts",
+    "recon": "tsx src/cli/recon.ts",
+    "smoke": "tsx src/cli/smoke.ts",
+    "mcp-check": "tsx src/cli/mcp-check.ts",
     "start": "node dist/index.js"
   },
   "engines": {

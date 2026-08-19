@@ -1,7 +1,7 @@
-import { loadSessionOrThrow } from "./auth/session.js";
-import { OverleafClient } from "./overleaf/client.js";
-import { Workspace } from "./overleaf/workspace.js";
-import { renderTree } from "./overleaf/tree.js";
+import { loadSessionOrThrow } from "../auth/session.js";
+import { OverleafClient } from "../overleaf/client.js";
+import { Workspace } from "../overleaf/workspace.js";
+import { renderTree } from "../overleaf/tree.js";
 
 const PROJECT_NAME = process.env.OVERLEAF_SMOKE_NAME ?? "claude-mcp-smoketest";
 

@@ -1,10 +1,10 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
-import { BASE_URL } from "./config.js";
-import { loadSessionOrThrow } from "./auth/session.js";
-import { OverleafClient } from "./overleaf/client.js";
-import { Workspace } from "./overleaf/workspace.js";
-import { joinProject } from "./overleaf/socket.js";
+import { BASE_URL } from "../config.js";
+import { loadSessionOrThrow } from "../auth/session.js";
+import { OverleafClient } from "../overleaf/client.js";
+import { Workspace } from "../overleaf/workspace.js";
+import { joinProject } from "../overleaf/socket.js";
 
 const OUT_DIR = path.resolve("recon-output");
 

@@ -1,7 +1,7 @@
-import { loadSessionOrThrow } from "./auth/session.js";
-import { OverleafClient } from "./overleaf/client.js";
-import { Workspace, isImage } from "./overleaf/workspace.js";
-import { renderTree } from "./overleaf/tree.js";
+import { loadSessionOrThrow } from "../auth/session.js";
+import { OverleafClient } from "../overleaf/client.js";
+import { Workspace, isImage } from "../overleaf/workspace.js";
+import { renderTree } from "../overleaf/tree.js";
 
 function usage(): never {
   process.stderr.write('Usage: npm run read -- "<project name or id>" [file path]\n');
