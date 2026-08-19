@@ -1,0 +1,52 @@
+name: Bug report
+description: Something in the server or the setup does not work
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never paste cookie values, session files, or anything from `~/.overleaf-claude-mcp/session.json`.
+
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you asked for and what you got instead.
+    validations:
+      required: true
+
+  - type: textarea
+    id: status
+    attributes:
+      label: Output of overleaf_status
+      description: Ask Claude to run `overleaf_status`, or describe your session state. Redact the project id if you prefer.
+      render: text
+
+  - type: textarea
+    id: recon
+    attributes:
+      label: Output of npm run recon
+      description: Run it and paste the OK and FAIL lines. This identifies which endpoint changed.
+      render: text
+
+  - type: input
+    id: platform
+    attributes:
+      label: Platform and Node version
+      placeholder: Windows 11, Node 22.18.0
+    validations:
+      required: true
+
+  - type: input
+    id: client
+    attributes:
+      label: MCP client
+      placeholder: Claude Code 2.1.143, or Claude Desktop
+    validations:
+      required: true
+
+  - type: input
+    id: commit
+    attributes:
+      label: Commit or version
+      placeholder: aede984, or 0.2.0

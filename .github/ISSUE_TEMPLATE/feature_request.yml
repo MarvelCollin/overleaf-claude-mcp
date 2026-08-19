@@ -1,0 +1,30 @@
+name: Feature request
+description: Suggest a capability this server should have
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do
+      description: Describe the task, not the implementation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What should it look like
+      description: If you have a tool name and arguments in mind, sketch them here.
+
+  - type: input
+    id: endpoint
+    attributes:
+      label: Known Overleaf endpoint
+      description: If you already know which internal endpoint would back this, name it.
+
+  - type: checkboxes
+    id: premium
+    attributes:
+      label: Confirmation
+      options:
+        - label: This does not depend on an Overleaf Premium feature such as the Git bridge or Dropbox sync
