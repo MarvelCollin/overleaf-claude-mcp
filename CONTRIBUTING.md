@@ -28,20 +28,24 @@ That creates a throwaway project named `claude-mcp-smoketest`, exercises the ful
 
 ## Layout
 
+Every directory keeps its interfaces and type aliases in its own `types.ts`. No type is declared inline next to the code that uses it, so a type has exactly one place to live and one place to look for it.
+
 ```
 src/
+  types.ts            application level types
   index.ts            entry point, builds the server and connects stdio
   context.ts          session, client, workspace and selection state in one object
   config.ts           environment driven settings
   state.ts            which project is selected, persisted across restarts
   auth/               getting and storing an Overleaf session
+    types.ts          stored cookies and installed browsers
     browsers.ts       finding installed browsers and the default one
     login.ts          sign in through a browser window
     import-browser.ts reuse a session from an already signed in browser
     paste.ts          accept a cookie directly, for machines with no display
     session.ts        cookie jar and persistence
   overleaf/           everything that speaks to Overleaf
-    types.ts          every domain type, single source
+    types.ts          every Overleaf domain type
     client.ts         HTTP layer and endpoints
     socket.ts         socket.io handshake for the file tree
     tree.ts           turning a raw project into a flat path list
@@ -49,6 +53,7 @@ src/
     html.ts           reading values out of Overleaf's meta tags
     latex-log.ts      parsing compiler output
   tools/              one module per group of MCP tools
+    types.ts          tool result and module signatures
     registry.ts       result helpers and the error boundary
     projects.ts       status, selection, listing
     files.ts          reading, searching, downloading
@@ -56,6 +61,7 @@ src/
     history.ts        versions, diffs, restore
     compile.ts        compiling, logs, PDF, word count
   cli/                command line entry points
+    types.ts          shapes used by the command line tools
     shared.ts         paths, process helpers, session checks, registration
 scripts/
   verify-startup.mjs  credential free check used by CI
