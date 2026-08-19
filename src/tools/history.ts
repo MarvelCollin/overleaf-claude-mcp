@@ -34,20 +34,23 @@ export const registerHistoryTools: ToolModule = (server, ctx) => {
     async ({ count, filePath, projectId }) =>
       guard(async () => {
         const id = await ctx.activeProject(projectId);
-        const { updates } = await ctx.client.updates(id, count ?? 10);
+        const limit = count ?? 10;
+        const { updates } = await ctx.client.updates(id, limit);
         const wanted = filePath ? normalizePath(filePath) : null;
-        const relevant = wanted
+        const matching = wanted
           ? updates.filter((u) => u.pathnames.some((p) => normalizePath(p) === wanted))
           : updates;
 
-        if (relevant.length === 0) {
+        if (matching.length === 0) {
           return text(wanted ? `No recorded changes to ${filePath}.` : "No history recorded.");
         }
 
+        const shown = matching.slice(0, limit);
+        const omitted = matching.length - shown.length;
         return text(
-          `${relevant.length} update(s)${wanted ? ` touching ${filePath}` : ""}\n\n${relevant
-            .map(describeUpdate)
-            .join("\n")}`,
+          `${shown.length} of ${matching.length} update(s)${wanted ? ` touching ${filePath}` : ""}${
+            omitted > 0 ? `, newest first` : ""
+          }\n\n${shown.map(describeUpdate).join("\n")}`,
         );
       }),
   );
