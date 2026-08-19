@@ -1,5 +1,10 @@
 # overleaf-claude-mcp
 
+[![CI](https://github.com/MarvelCollin/overleaf-claude-mcp/actions/workflows/ci.yml/badge.svg)](https://github.com/MarvelCollin/overleaf-claude-mcp/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
+[![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-server-8A2BE2.svg)](https://modelcontextprotocol.io)
+
 Connect Claude to your Overleaf account. Claude can list your projects, pick one, read the LaTeX and the figures, edit files, compile, and pull the PDF back.
 
 Overleaf has no public API on the free tier: the Git bridge and Dropbox sync are Premium features. So this server speaks the same internal HTTP and socket endpoints the Overleaf web app uses, authenticated with a browser session you create once. Every endpoint was read out of Overleaf's own JavaScript bundle and then exercised against a live account. See [Verified endpoints](#verified-endpoints).
@@ -259,6 +264,13 @@ All optional. Copy `.env.example` to `.env` in this folder and it is loaded on s
 | `OVERLEAF_TREE_TTL_MS` | `15000` | File tree cache lifetime |
 | `OVERLEAF_SOCKET_TIMEOUT_MS` | `20000` | |
 | `OVERLEAF_LOGIN_TIMEOUT_MS` | `600000` | How long the login window waits |
+
+## Project
+
+* [Changelog](CHANGELOG.md)
+* [Contributing](CONTRIBUTING.md)
+* [Security policy](SECURITY.md)
+* [MIT licensed](LICENSE)
 
 ## Limits
 
