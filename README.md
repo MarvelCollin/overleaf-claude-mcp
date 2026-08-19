@@ -1,22 +1,23 @@
 # overleaf-claude-mcp
 
-MCP server that connects Claude to your Overleaf account. List and pick a project, read the LaTeX and the figures, edit files, compile, and pull the PDF back.
+Connect Claude to your Overleaf account. Claude can list your projects, pick one, read the LaTeX and the figures, edit files, compile, and pull the PDF back.
 
-Overleaf has no public API on the free tier: the Git bridge and Dropbox sync are Premium features. So this server speaks the same internal HTTP and socket endpoints the Overleaf web app itself uses, authenticated with a browser session you create once.
+Overleaf has no public API on the free tier: the Git bridge and Dropbox sync are Premium features. So this server speaks the same internal HTTP and socket endpoints the Overleaf web app uses, authenticated with a browser session you create once. Every endpoint was read out of Overleaf's own JavaScript bundle and then exercised against a live account. See [Verified endpoints](#verified-endpoints).
 
-Every endpoint used here was read out of Overleaf's own JavaScript bundle and then exercised against a live account. See [Verified endpoints](#verified-endpoints).
+---
 
-## How auth works
+## Tutorial
 
-`npm run login` opens a real Chrome window on the Overleaf login page. You sign in by hand, so CAPTCHA and 2FA work normally. Once you land on your project list, the session cookies are written to `~/.overleaf-claude-mcp/session.json` with `0600` permissions.
+### What you need
 
-That file is equivalent to full access to your Overleaf account. It is gitignored. Do not share it and do not commit it.
+- Node 20 or newer (`node -v`)
+- Chrome or Edge installed
+- An Overleaf account, free tier is fine
+- Claude Code (`claude --version`) or Claude Desktop
 
-Cookies are refreshed automatically as Overleaf rotates them. When the session finally expires, every tool returns an error telling you to run `npm run login` again.
+### Step 1: Run setup
 
-## Setup
-
-One command. On Windows:
+From this folder, on Windows:
 
 ```bash
 setup.cmd
@@ -28,9 +29,37 @@ On macOS or Linux:
 ./setup.sh
 ```
 
-It installs dependencies, builds, opens a browser for you to sign in to Overleaf, reads one of your projects back to prove the connection works, and offers to register the server with Claude Code. Re-running it is safe: an existing working session is reused and nothing is overwritten.
+Setup runs five steps and prints each one:
 
-If you would rather register by hand, or you use a different MCP client:
+1. Installs dependencies
+2. Builds to `dist/`
+3. Checks for a working Overleaf session. If there isn't one, a browser window opens on the Overleaf login page
+4. Reads one of your real projects back, to prove the connection works
+5. Offers to register the server with Claude Code
+
+### Step 2: Sign in when the browser opens
+
+The browser window is a real Chrome. Sign in the way you normally would, including 2FA. Nothing types your password for you and your password is never read or stored.
+
+Once you land on your project list, the window closes on its own and setup continues. Your session cookies are saved to `~/.overleaf-claude-mcp/session.json`.
+
+That file is equivalent to full access to your Overleaf account. It is gitignored and written with `0600` permissions. Do not share it and do not commit it.
+
+### Step 3: Let setup register the server
+
+At step 5 you get a prompt:
+
+```
+      Register this server with Claude Code now? [y/N]
+```
+
+Answer `y`. That runs:
+
+```bash
+claude mcp add overleaf -- node C:/CoolYEAH/overleaf-claude-mcp/dist/index.js
+```
+
+If you skipped it, or you use a different client, register by hand. For **Claude Code**, run the command above. For **Claude Desktop**, edit `%APPDATA%\Claude\claude_desktop_config.json` on Windows or `~/Library/Application Support/Claude/claude_desktop_config.json` on macOS:
 
 ```json
 {
@@ -43,33 +72,55 @@ If you would rather register by hand, or you use a different MCP client:
 }
 ```
 
-To check a project from the terminal without going through Claude:
+### Step 4: Restart Claude
+
+MCP servers are only picked up at startup. Quit and reopen Claude Code or Claude Desktop.
+
+Confirm it loaded:
 
 ```bash
-npm run read -- "Efficient Reasoning"
+claude mcp list
 ```
 
-That prints the file tree and every section heading. Add a file path to dump one file:
+You should see `overleaf` listed as connected. Inside a Claude Code session, `/mcp` shows the same thing.
 
-```bash
-npm run read -- "Efficient Reasoning" sections/methodology.tex
-```
+### Step 5: Use it
 
-## Usage
-
-Pick a project once, then every other tool defaults to it. The selection persists across restarts in `~/.overleaf-claude-mcp/state.json`.
+Just ask in plain language. Claude picks the tools itself.
 
 ```
-overleaf_list_projects
-overleaf_select_project { "query": "Efficient Reasoning" }
-overleaf_read_file { "filePath": "sections/methodology.tex" }
-overleaf_edit_file { "filePath": "sections/methodology.tex", "oldString": "Table 1", "newString": "Table~\\ref{tab:main}" }
-overleaf_compile_log
+List my Overleaf projects
+```
+```
+Select the Efficient Reasoning project
+```
+```
+Read sections/methodology.tex
+```
+```
+In sections/results.tex, change "Table 1" to "Table~\ref{tab:main}"
+```
+```
+Compile it and tell me what the LaTeX errors are
+```
+```
+Show me figures/fig1.png
+```
+```
+Save the compiled PDF to C:/tmp/paper.pdf
 ```
 
-`overleaf_select_project` takes a project id or any part of a project name. If the name matches more than one project it lists the candidates instead of guessing.
+Pick a project once and it sticks. The selection is stored in `~/.overleaf-claude-mcp/state.json` and survives restarts, so every later request applies to that project until you switch. To work on a different project in one request without switching, name it: "read main.tex from my thesis project".
 
-## Tools
+---
+
+## How to trigger it
+
+There is no slash command and nothing to type. Claude reads the tool descriptions and calls them when your request matches. Mentioning Overleaf, or a project or file you already selected, is enough.
+
+If Claude does not reach for the tools, the usual causes are: you did not restart after registering, or no project is selected yet. Ask "what Overleaf project is selected?" to check.
+
+### Tools
 
 | Tool | Purpose |
 | --- | --- |
@@ -93,13 +144,41 @@ overleaf_compile_log
 | `overleaf_download_pdf` | Compile and save the PDF |
 | `overleaf_word_count` | Compiled word count |
 
+`overleaf_select_project` takes a project id or any part of a project name. If the name matches more than one project it lists the candidates instead of guessing. `overleaf_delete` refuses to run unless `confirm` is true, so Claude cannot delete a file by accident.
+
+---
+
+## Troubleshooting
+
+**"No Overleaf session at ..."** — you have not signed in yet, or the session expired. Run `npm run login`, or `setup.cmd` again.
+
+**Claude does not see the tools** — you did not restart Claude after registering. Check `claude mcp list`.
+
+**A tool suddenly fails** — Overleaf may have changed an endpoint. Run `npm run recon`, which probes each endpoint read-only and tells you exactly which call broke.
+
+**Check your setup from the terminal, without Claude:**
+
+```bash
+npm run read -- "Efficient Reasoning"
+```
+
+Prints the file tree and every section heading of the matching project. Add a path to dump a single file:
+
+```bash
+npm run read -- "Efficient Reasoning" sections/methodology.tex
+```
+
+**Re-run setup any time.** It reuses a working session and re-verifies the connection, so it doubles as a health check.
+
+---
+
 ## How it works
 
 The file tree comes from Overleaf's socket connection, because that is the only source that carries entity ids, and ids are what writes need. The handshake is `GET /socket.io/1/?projectId=<id>`, which is socket.io 0.9 framing; the server then pushes `joinProjectResponse` with the whole project including `rootFolder`, doc ids and file hashes. The tree is cached for `OVERLEAF_TREE_TTL_MS` (default 15s) and invalidated after every write.
 
 Text files are read per document, so a read always reflects the current state. `overleaf_grep` reads the project archive instead, so a whole project search costs one request rather than one per file.
 
-Writes go through the upload endpoint. Uploading over an existing name is an in place update: the entity id is preserved, so Overleaf history and any collaborators in the document keep working. Missing parent folders are created first.
+Writes go through the upload endpoint. Uploading over an existing name is an in place update: the entity id is preserved, so Overleaf history and anyone else in the document keep working. Missing parent folders are created first.
 
 ## Verified endpoints
 
@@ -125,25 +204,19 @@ Confirmed live against a real account, not assumed:
 
 `:type` is `doc`, `file` or `folder`.
 
-## Checking it still works
+## Scripts
 
-```bash
-npm run setup
-```
+| Command | What it does |
+| --- | --- |
+| `setup.cmd` / `./setup.sh` | Full setup from scratch |
+| `npm run setup` | Same, assuming dependencies are installed |
+| `npm run login` | Re-authenticate only |
+| `npm run read -- "<project>"` | Inspect a project from the terminal |
+| `npm run recon` | Read-only probe of every endpoint |
+| `npm run smoke` | End-to-end write test in a throwaway project |
+| `npm run build` | Compile to `dist/` |
 
-Re-run it any time. It reuses a working session and re-verifies the connection, so it doubles as a health check.
-
-```bash
-npm run recon
-```
-
-Read only. Probes every endpoint against your first project and writes `recon-output/report.json`. Run this first if something starts failing; it tells you which call broke.
-
-```bash
-npm run smoke
-```
-
-Creates a throwaway project called `claude-mcp-smoketest`, then exercises write, overwrite, image upload, rename, move, delete and compile end to end. It leaves the project in your account so you can inspect it. Trash it when you are done.
+`npm run smoke` creates a project called `claude-mcp-smoketest`, then exercises write, overwrite, image upload, rename, move, delete and compile. It leaves the project in your account so you can inspect it. Trash it when you are done.
 
 ## Configuration
 
