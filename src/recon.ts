@@ -3,8 +3,8 @@ import path from "node:path";
 import { BASE_URL } from "./config.js";
 import { loadSessionOrThrow } from "./auth/session.js";
 import { OverleafClient } from "./overleaf/client.js";
-import { ProjectCache } from "./overleaf/cache.js";
-import { listMetaNames, readMeta } from "./overleaf/html.js";
+import { Workspace } from "./overleaf/workspace.js";
+import { joinProject } from "./overleaf/socket.js";
 
 const OUT_DIR = path.resolve("recon-output");
 
@@ -14,12 +14,19 @@ interface Probe {
   detail: unknown;
 }
 
-function redact(html: string, secrets: (string | null)[]): string {
-  let out = html;
-  for (const secret of secrets) {
-    if (secret && secret.length > 8) out = out.split(secret).join("[REDACTED]");
+async function probe(
+  probes: Probe[],
+  name: string,
+  fn: () => Promise<unknown>,
+): Promise<unknown | null> {
+  try {
+    const detail = await fn();
+    probes.push({ name, ok: true, detail });
+    return detail;
+  } catch (err) {
+    probes.push({ name, ok: false, detail: err instanceof Error ? err.message : String(err) });
+    return null;
   }
-  return out;
 }
 
 async function run(): Promise<void> {
@@ -27,104 +34,87 @@ async function run(): Promise<void> {
   const probes: Probe[] = [];
   const session = await loadSessionOrThrow();
   const client = new OverleafClient(session);
+  const workspace = new Workspace(client);
 
-  const projectListHtml = await client.getHtml("/project");
-  const csrf = readMeta(projectListHtml, "ol-csrfToken");
-  await fsp.writeFile(
-    path.join(OUT_DIR, "project-list.html"),
-    redact(projectListHtml, [csrf]),
-    "utf8",
-  );
-  probes.push({
-    name: "GET /project",
-    ok: true,
-    detail: { metaTags: listMetaNames(projectListHtml), csrfFound: Boolean(csrf) },
-  });
+  const projects = (await probe(probes, "listProjects", async () => {
+    const list = await client.listProjects();
+    return { count: list.length, names: list.map((p) => p.name).slice(0, 10) };
+  })) as { count: number } | null;
 
-  let projects: Awaited<ReturnType<OverleafClient["listProjects"]>> = [];
-  try {
-    projects = await client.listProjects();
-    probes.push({
-      name: "listProjects",
-      ok: true,
-      detail: { count: projects.length, sample: projects.slice(0, 5) },
-    });
-  } catch (err) {
-    probes.push({ name: "listProjects", ok: false, detail: String(err) });
+  const explicit = process.env.OVERLEAF_RECON_PROJECT_ID;
+  let target = explicit;
+  if (!target && projects) {
+    const list = await client.listProjects();
+    target = list.find((p) => !p.archived && !p.trashed)?.id;
   }
 
-  const target = process.env.OVERLEAF_RECON_PROJECT_ID ?? projects[0]?.id;
   if (!target) {
     probes.push({ name: "project probes", ok: false, detail: "No project id available" });
   } else {
-    try {
-      const html = await client.projectPage(target);
-      await fsp.writeFile(
-        path.join(OUT_DIR, "project-page.html"),
-        redact(html, [csrf, readMeta(html, "ol-csrfToken")]),
-        "utf8",
-      );
-      probes.push({
-        name: `GET /project/${target}`,
-        ok: true,
-        detail: { metaTags: listMetaNames(html) },
-      });
-    } catch (err) {
-      probes.push({ name: `GET /project/${target}`, ok: false, detail: String(err) });
-    }
+    await probe(probes, "socket joinProject", async () => {
+      const joined = await joinProject(client, target!);
+      return {
+        permissionsLevel: joined.permissionsLevel,
+        protocolVersion: joined.protocolVersion,
+        compiler: joined.project.compiler,
+        rootFolders: joined.project.rootFolder.length,
+      };
+    });
 
-    try {
-      const cache = new ProjectCache(client);
-      const entries = await cache.list(target, true);
-      probes.push({
-        name: `GET /project/${target}/download/zip`,
-        ok: true,
-        detail: { entryCount: entries.length, entries: entries.slice(0, 50) },
-      });
-    } catch (err) {
-      probes.push({ name: `GET /project/${target}/download/zip`, ok: false, detail: String(err) });
-    }
+    await probe(probes, "buildTree", async () => {
+      const tree = await workspace.tree(target!, true);
+      return {
+        rootDocId: Boolean(tree.rootDocId),
+        docs: tree.entries.filter((e) => e.type === "doc").length,
+        files: tree.entries.filter((e) => e.type === "file").length,
+        folders: tree.entries.filter((e) => e.type === "folder").length,
+        paths: tree.entries.map((e) => e.path).slice(0, 40),
+      };
+    });
 
-    for (const candidate of [`/project/${target}/entities`, `/project/${target}/details`]) {
-      try {
-        const response = await client.request(candidate, { headers: { accept: "application/json" } });
-        const body = await response.text();
-        probes.push({
-          name: `GET ${candidate}`,
-          ok: response.ok,
-          detail: { status: response.status, body: body.slice(0, 1500) },
-        });
-      } catch (err) {
-        probes.push({ name: `GET ${candidate}`, ok: false, detail: String(err) });
-      }
-    }
+    await probe(probes, "entities", async () => {
+      const result = await client.entities(target!);
+      return { count: result.entities.length };
+    });
 
-    try {
-      const result = await client.compile(target);
-      probes.push({
-        name: `POST /project/${target}/compile`,
-        ok: true,
-        detail: {
-          status: result.status,
-          clsiServerId: result.clsiServerId,
-          outputFiles: result.outputFiles.map((f) => ({ path: f.path, url: f.url })),
-        },
-      });
-    } catch (err) {
-      probes.push({ name: `POST /project/${target}/compile`, ok: false, detail: String(err) });
-    }
+    await probe(probes, "readDoc", async () => {
+      const tree = await workspace.tree(target!);
+      const doc = tree.entries.find((e) => e.type === "doc");
+      if (!doc) return "no docs in project";
+      const content = await workspace.readText(target!, doc.path);
+      return { path: doc.path, chars: content.length };
+    });
+
+    await probe(probes, "readBlob", async () => {
+      const tree = await workspace.tree(target!);
+      const file = tree.entries.find((e) => e.type === "file" && e.hash);
+      if (!file) return "no hashed files in project";
+      const bytes = await workspace.readBinary(target!, file.path);
+      return { path: file.path, bytes: bytes.length };
+    });
+
+    await probe(probes, "downloadZip", async () => {
+      const zip = await client.downloadProjectZip(target!);
+      return { bytes: zip.length };
+    });
+
+    await probe(probes, "compile", async () => {
+      const result = await client.compile(target!);
+      return { status: result.status, outputs: result.outputFiles.map((f) => f.path) };
+    });
   }
 
   const report = { baseUrl: BASE_URL, ranAt: new Date().toISOString(), probes };
   await fsp.writeFile(path.join(OUT_DIR, "report.json"), JSON.stringify(report, null, 2), "utf8");
 
-  for (const probe of probes) {
-    process.stdout.write(`${probe.ok ? "OK  " : "FAIL"} ${probe.name}\n`);
+  for (const item of probes) {
+    process.stdout.write(`${item.ok ? "OK  " : "FAIL"} ${item.name}\n`);
+    if (!item.ok) process.stdout.write(`     ${String(item.detail)}\n`);
   }
   process.stdout.write(`\nFull report: ${path.join(OUT_DIR, "report.json")}\n`);
 }
 
 run().catch((err) => {
-  process.stderr.write(`${err instanceof Error ? err.stack ?? err.message : String(err)}\n`);
+  process.stderr.write(`${err instanceof Error ? (err.stack ?? err.message) : String(err)}\n`);
   process.exit(1);
 });
