@@ -37,6 +37,7 @@
     "build": "tsc",
     "watch": "tsc --watch",
     "setup": "tsx src/setup.ts",
+    "agent-setup": "tsx src/agent-setup.ts",
     "login": "tsx src/auth/login.ts",
     "login:browser": "tsx src/auth/import-browser.ts",
     "login:paste": "tsx src/auth/paste.ts",
