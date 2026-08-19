@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { MAX_READ_CHARS } from "../config.js";
-import type { ProjectUpdate } from "../overleaf/client.js";
+import type { ProjectUpdate } from "../overleaf/types.js";
 import { normalizePath } from "../overleaf/tree.js";
 import { failure, guard, text, type ToolModule } from "./registry.js";
 

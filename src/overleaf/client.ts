@@ -1,67 +1,16 @@
 import { BASE_URL, USER_AGENT } from "../config.js";
 import { AuthError, SessionStore } from "../auth/session.js";
 import { listMetaNames, readMeta, readMetaJson } from "./html.js";
-import type { EntityType } from "./tree.js";
-
-export interface ProjectSummary {
-  id: string;
-  name: string;
-  lastUpdated?: string;
-  owner?: string;
-  archived?: boolean;
-  trashed?: boolean;
-  accessLevel?: string;
-}
-
-export interface CompileOutputFile {
-  path: string;
-  url: string;
-  type?: string;
-  build?: string;
-}
-
-export interface CompileResult {
-  status: string;
-  outputFiles: CompileOutputFile[];
-  compileGroup?: string;
-  clsiServerId?: string;
-}
-
-export interface UploadResult {
-  success: boolean;
-  entity_id?: string;
-  entity_type?: string;
-}
-
-export interface UpdateMetaUser {
-  first_name?: string;
-  last_name?: string;
-  email?: string;
-  id?: string;
-}
-
-export interface ProjectUpdate {
-  fromV: number;
-  toV: number;
-  pathnames: string[];
-  meta?: { users?: UpdateMetaUser[]; start_ts?: number; end_ts?: number };
-}
-
-export interface UpdatesResult {
-  updates: ProjectUpdate[];
-}
-
-export interface DiffSegment {
-  u?: string;
-  i?: string;
-  d?: string;
-  meta?: { users?: UpdateMetaUser[]; start_ts?: number; end_ts?: number };
-}
-
-export interface EntitiesResult {
-  project_id: string;
-  entities: { path: string; type: "doc" | "file" }[];
-}
+import type {
+  CompileOutputFile,
+  CompileResult,
+  DiffSegment,
+  EntitiesResult,
+  EntityType,
+  ProjectSummary,
+  UpdatesResult,
+  UploadResult,
+} from "./types.js";
 
 interface RawProject {
   id?: string;

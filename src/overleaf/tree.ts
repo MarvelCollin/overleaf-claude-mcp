@@ -1,24 +1,4 @@
-import type { JoinedProject, RawFolder } from "./socket.js";
-
-export type EntityType = "doc" | "file" | "folder";
-
-export interface TreeEntry {
-  path: string;
-  name: string;
-  type: EntityType;
-  id: string;
-  hash?: string;
-  parentFolderId: string;
-}
-
-export interface ProjectTree {
-  projectId: string;
-  name: string;
-  rootFolderId: string;
-  rootDocId?: string;
-  compiler?: string;
-  entries: TreeEntry[];
-}
+import type { JoinedProject, ProjectTree, RawFolder, TreeEntry } from "./types.js";
 
 export function normalizePath(input: string): string {
   return input.replace(/\\/g, "/").replace(/^\.?\/+/, "").replace(/\/+$/, "");

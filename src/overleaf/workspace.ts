@@ -3,17 +3,8 @@ import path from "node:path";
 import AdmZip from "adm-zip";
 import type { OverleafClient } from "./client.js";
 import { joinProject } from "./socket.js";
-import {
-  basename,
-  buildTree,
-  dirname,
-  findEntry,
-  findFolderId,
-  normalizePath,
-  type EntityType,
-  type ProjectTree,
-  type TreeEntry,
-} from "./tree.js";
+import { basename, buildTree, dirname, findEntry, findFolderId, normalizePath } from "./tree.js";
+import type { EntityType, GrepHit, ProjectTree, TreeEntry } from "./types.js";
 
 const TREE_TTL_MS = Number(process.env.OVERLEAF_TREE_TTL_MS ?? 15_000);
 const DOC_GREP_LIMIT = Number(process.env.OVERLEAF_DOC_GREP_LIMIT ?? 40);
@@ -43,12 +34,6 @@ export function mimeFor(filePath: string): string {
 
 export function isImage(filePath: string): boolean {
   return mimeFor(filePath).startsWith("image/");
-}
-
-export interface GrepHit {
-  path: string;
-  line: number;
-  text: string;
 }
 
 export class Workspace {

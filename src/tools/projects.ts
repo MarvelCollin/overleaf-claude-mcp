@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { BASE_URL } from "../config.js";
-import type { ProjectSummary } from "../overleaf/client.js";
+import type { ProjectSummary } from "../overleaf/types.js";
 import { renderTree } from "../overleaf/tree.js";
 import { guard, text, type ToolModule } from "./registry.js";
 

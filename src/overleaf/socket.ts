@@ -1,43 +1,7 @@
 import WebSocket from "ws";
 import { BASE_URL, USER_AGENT } from "../config.js";
 import type { OverleafClient } from "./client.js";
-
-export interface RawDoc {
-  _id: string;
-  name: string;
-}
-
-export interface RawFileRef {
-  _id: string;
-  name: string;
-  hash?: string;
-  created?: string;
-}
-
-export interface RawFolder {
-  _id: string;
-  name: string;
-  folders: RawFolder[];
-  fileRefs: RawFileRef[];
-  docs: RawDoc[];
-}
-
-export interface JoinedProject {
-  _id: string;
-  name: string;
-  rootDoc_id?: string;
-  rootFolder: RawFolder[];
-  compiler?: string;
-  imageName?: string;
-  spellCheckLanguage?: string;
-  publicAccesLevel?: string;
-}
-
-export interface JoinProjectResult {
-  project: JoinedProject;
-  permissionsLevel: string;
-  protocolVersion: number;
-}
+import type { JoinProjectResult } from "./types.js";
 
 const JOIN_TIMEOUT_MS = Number(process.env.OVERLEAF_SOCKET_TIMEOUT_MS ?? 20_000);
 
