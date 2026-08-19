@@ -95,19 +95,25 @@ async function main(): Promise<void> {
 
   step(5, "Registering with Claude Code");
   const command = `claude mcp add overleaf -- node "${ENTRY}"`;
-  const hasClaude = spawnSync("claude", ["--version"], { shell: true, stdio: "ignore" }).status === 0;
-  if (!hasClaude) {
+  const claudeVersion = spawnSync("claude", ["--version"], { shell: true, stdio: "ignore" });
+
+  if (claudeVersion.status !== 0) {
     ok("claude CLI not found on PATH. Register it yourself with:");
     ok(command);
+  } else if (spawnSync("claude", ["mcp", "get", "overleaf"], { shell: true, stdio: "ignore" }).status === 0) {
+    ok("already registered as \"overleaf\"");
   } else if (await ask("      Register this server with Claude Code now?")) {
-    run("claude", ["mcp", "add", "overleaf", "--", "node", `"${ENTRY}"`])
-      ? ok("registered")
-      : ok(`registration failed, run it yourself: ${command}`);
+    const registered = spawnSync(
+      "claude",
+      ["mcp", "add", "overleaf", "--", "node", JSON.stringify(ENTRY)],
+      { cwd: ROOT, stdio: "inherit", shell: true },
+    ).status === 0;
+    ok(registered ? "registered" : `registration failed, run it yourself: ${command}`);
   } else {
     ok(`skipped. Register later with: ${command}`);
   }
 
-  process.stdout.write("\nSetup complete. Ask Claude to list your Overleaf projects.\n");
+  process.stdout.write("\nSetup complete. Restart Claude, then ask it to list your Overleaf projects.\n");
 }
 
 main().catch((err) => {
