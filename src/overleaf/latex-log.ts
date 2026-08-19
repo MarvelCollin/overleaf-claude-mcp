@@ -1,9 +1,4 @@
-export interface LogEntry {
-  level: "error" | "warning";
-  message: string;
-  file?: string;
-  line?: number;
-}
+import type { LogEntry } from "./types.js";
 
 const FILE_LINE = /^l\.(\d+)/;
 

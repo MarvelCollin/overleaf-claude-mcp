@@ -4,7 +4,8 @@ import { z } from "zod";
 import { MAX_READ_CHARS } from "../config.js";
 import { renderTree } from "../overleaf/tree.js";
 import { isImage, mimeFor } from "../overleaf/workspace.js";
-import { failure, guard, image, text, type ToolModule, type ToolResult } from "./registry.js";
+import { failure, guard, image, text } from "./registry.js";
+import type { ToolModule, ToolResult } from "./types.js";
 
 function linesWithinBudget(lines: string[]): number {
   let cutoff = 0;

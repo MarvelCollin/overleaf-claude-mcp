@@ -2,12 +2,7 @@ import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-
-export interface InstalledBrowser {
-  name: string;
-  executable: string;
-  userDataDir: string;
-}
+import type { InstalledBrowser } from "./types.js";
 
 const HOME = os.homedir();
 const LOCAL_APP_DATA = process.env.LOCALAPPDATA ?? path.join(HOME, "AppData", "Local");

@@ -3,8 +3,9 @@ import os from "node:os";
 import path from "node:path";
 import { chromium } from "playwright";
 import { BASE_URL, SESSION_COOKIE_NAMES, SESSION_FILE, USER_AGENT } from "../config.js";
-import { SessionStore, type StoredCookie } from "./session.js";
-import { findBrowser, type InstalledBrowser } from "./browsers.js";
+import { SessionStore } from "./session.js";
+import { findBrowser } from "./browsers.js";
+import type { InstalledBrowser, StoredCookie } from "./types.js";
 
 const COPIED_FILES = [
   "Local State",

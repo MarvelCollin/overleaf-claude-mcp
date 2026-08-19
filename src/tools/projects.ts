@@ -2,7 +2,8 @@ import { z } from "zod";
 import { BASE_URL } from "../config.js";
 import type { ProjectSummary } from "../overleaf/types.js";
 import { renderTree } from "../overleaf/tree.js";
-import { guard, text, type ToolModule } from "./registry.js";
+import { guard, text } from "./registry.js";
+import type { ToolModule } from "./types.js";
 
 function describeProject(project: ProjectSummary): string {
   const flags = [project.archived ? "archived" : null, project.trashed ? "trashed" : null]

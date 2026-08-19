@@ -1,6 +1,7 @@
 import { chromium, type Browser, type BrowserContext } from "playwright";
 import { BASE_URL, SESSION_COOKIE_NAMES, SESSION_FILE, USER_AGENT } from "../config.js";
-import { SessionStore, type StoredCookie } from "./session.js";
+import { SessionStore } from "./session.js";
+import type { StoredCookie } from "./types.js";
 import { findBrowser, hasDisplay } from "./browsers.js";
 
 const LOGIN_TIMEOUT_MS = Number(process.env.OVERLEAF_LOGIN_TIMEOUT_MS ?? 600_000);

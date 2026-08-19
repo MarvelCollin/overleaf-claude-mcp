@@ -5,7 +5,7 @@ import { registerFileTools } from "./files.js";
 import { registerEditingTools } from "./editing.js";
 import { registerHistoryTools } from "./history.js";
 import { registerCompileTools } from "./compile.js";
-import type { ToolModule } from "./registry.js";
+import type { ToolModule } from "./types.js";
 
 const MODULES: ToolModule[] = [
   registerProjectTools,

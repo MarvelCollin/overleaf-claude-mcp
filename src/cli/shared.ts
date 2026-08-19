@@ -5,16 +5,11 @@ import { fileURLToPath } from "node:url";
 import { SessionStore } from "../auth/session.js";
 import { OverleafClient } from "../overleaf/client.js";
 import { Workspace } from "../overleaf/workspace.js";
+import type { SessionTools } from "./types.js";
 
 export const ROOT = path.resolve(fileURLToPath(import.meta.url), "../../..");
 export const ENTRY = path.join(ROOT, "dist", "index.js");
 export const REGISTER_COMMAND = `claude mcp add overleaf -s user -- node "${ENTRY}"`;
-
-export interface SessionTools {
-  store: SessionStore;
-  client: OverleafClient;
-  workspace: Workspace;
-}
 
 export function runCommand(command: string, args: string[]): boolean {
   return spawnSync(command, args, { cwd: ROOT, stdio: "inherit", shell: true }).status === 0;

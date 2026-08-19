@@ -2,17 +2,12 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { CallOutcome } from "./types.js";
 
 const ROOT = path.resolve(fileURLToPath(import.meta.url), "../../..");
 const ENTRY = path.join(ROOT, "dist", "index.js");
 
 const PROJECT_QUERY = process.argv[2] ?? "Efficient Reasoning";
-
-interface CallOutcome {
-  ok: boolean;
-  body: string;
-  images: number;
-}
 
 let passed = 0;
 let failed = 0;

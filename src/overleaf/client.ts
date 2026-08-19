@@ -8,20 +8,10 @@ import type {
   EntitiesResult,
   EntityType,
   ProjectSummary,
+  RawProject,
   UpdatesResult,
   UploadResult,
 } from "./types.js";
-
-interface RawProject {
-  id?: string;
-  _id?: string;
-  name?: string;
-  lastUpdated?: string;
-  archived?: boolean;
-  trashed?: boolean;
-  accessLevel?: string;
-  owner?: { email?: string; firstName?: string; lastName?: string };
-}
 
 export class OverleafHttpError extends Error {
   constructor(

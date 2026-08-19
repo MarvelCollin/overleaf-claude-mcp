@@ -1,7 +1,8 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
-import { failure, guard, text, type ToolModule } from "./registry.js";
+import { failure, guard, text } from "./registry.js";
+import type { ToolModule } from "./types.js";
 
 export const registerEditingTools: ToolModule = (server, ctx) => {
   server.registerTool(

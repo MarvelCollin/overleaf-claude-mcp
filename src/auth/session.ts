@@ -1,20 +1,7 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { SESSION_COOKIE_NAMES, SESSION_FILE } from "../config.js";
-
-export interface StoredCookie {
-  name: string;
-  value: string;
-  domain: string;
-  path: string;
-  expires?: number;
-}
-
-export interface StoredSession {
-  savedAt: string;
-  baseUrl: string;
-  cookies: StoredCookie[];
-}
+import type { StoredCookie, StoredSession } from "./types.js";
 
 export class AuthError extends Error {
   constructor(message: string) {

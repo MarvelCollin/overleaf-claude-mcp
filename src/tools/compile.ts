@@ -1,7 +1,8 @@
 import { z } from "zod";
 import { parseLatexLog, summarizeLog } from "../overleaf/latex-log.js";
 import { saveLocally } from "./files.js";
-import { guard, text, type ToolModule } from "./registry.js";
+import { guard, text } from "./registry.js";
+import type { ToolModule } from "./types.js";
 
 export const registerCompileTools: ToolModule = (server, ctx) => {
   server.registerTool(

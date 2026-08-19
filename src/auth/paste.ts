@@ -1,6 +1,7 @@
 import readline from "node:readline/promises";
 import { BASE_URL, SESSION_COOKIE_NAMES, SESSION_FILE, USER_AGENT } from "../config.js";
-import { SessionStore, type StoredCookie } from "./session.js";
+import { SessionStore } from "./session.js";
+import type { StoredCookie } from "./types.js";
 
 const FIVE_DAYS_SECONDS = 5 * 24 * 60 * 60;
 

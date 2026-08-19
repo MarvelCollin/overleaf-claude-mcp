@@ -126,3 +126,21 @@ export interface GrepHit {
   line: number;
   text: string;
 }
+
+export interface RawProject {
+  id?: string;
+  _id?: string;
+  name?: string;
+  lastUpdated?: string;
+  archived?: boolean;
+  trashed?: boolean;
+  accessLevel?: string;
+  owner?: { email?: string; firstName?: string; lastName?: string };
+}
+
+export interface LogEntry {
+  level: "error" | "warning";
+  message: string;
+  file?: string;
+  line?: number;
+}

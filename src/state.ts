@@ -1,12 +1,7 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { HOME_DIR } from "./config.js";
-
-export interface ActiveProject {
-  id: string;
-  name: string;
-  selectedAt: string;
-}
+import type { ActiveProject } from "./types.js";
 
 const STATE_FILE = path.join(HOME_DIR, "state.json");
 

@@ -5,14 +5,9 @@ import { loadSessionOrThrow } from "../auth/session.js";
 import { OverleafClient } from "../overleaf/client.js";
 import { Workspace } from "../overleaf/workspace.js";
 import { joinProject } from "../overleaf/socket.js";
+import type { Probe } from "./types.js";
 
 const OUT_DIR = path.resolve("recon-output");
-
-interface Probe {
-  name: string;
-  ok: boolean;
-  detail: unknown;
-}
 
 async function probe(
   probes: Probe[],
