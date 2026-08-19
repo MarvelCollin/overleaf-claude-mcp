@@ -1,6 +1,6 @@
 {
   "name": "overleaf-claude-mcp",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "description": "MCP server exposing your Overleaf projects to Claude via an authenticated browser session.",
@@ -12,6 +12,7 @@
     "watch": "tsc --watch",
     "login": "tsx src/auth/login.ts",
     "recon": "tsx src/recon.ts",
+    "smoke": "tsx src/smoke.ts",
     "start": "node dist/index.js"
   },
   "engines": {
