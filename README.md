@@ -145,6 +145,10 @@ If Claude does not reach for the tools, the usual causes are: you did not restar
 | `overleaf_rename` | Rename a file or folder |
 | `overleaf_move` | Move a file or folder |
 | `overleaf_delete` | Delete an entry, requires `confirm: true` |
+| `overleaf_history` | Recent versions: who changed what, and when |
+| `overleaf_file_at_version` | Read a file as it was at a past version |
+| `overleaf_diff` | What changed in a file between two versions |
+| `overleaf_restore_file` | Roll a file back, requires `confirm: true` |
 | `overleaf_compile` | Server side compile |
 | `overleaf_compile_log` | Compile and return parsed LaTeX errors |
 | `overleaf_download_pdf` | Compile and save the PDF |
@@ -192,6 +196,12 @@ Text files are read per document, so a read always reflects the current state. `
 
 Writes go through the upload endpoint. Uploading over an existing name is an in place update: the entity id is preserved, so Overleaf history and anyone else in the document keep working. Missing parent folders are created first.
 
+Because a write replaces a whole document, there is a guard against clobbering someone else's work. The server remembers a hash of every file it reads. If you then write to that file and Overleaf's copy no longer matches what was read, the write is refused:
+
+> "sections/results.tex" changed on Overleaf since you last read it, so writing now would discard those edits.
+
+Read the file again to pick up the change, or pass `force` to overwrite deliberately. If something does get overwritten, `overleaf_history` shows the versions and `overleaf_restore_file` rolls it back.
+
 ## Verified endpoints
 
 Confirmed live against a real account, not assumed:
@@ -213,6 +223,9 @@ Confirmed live against a real account, not assumed:
 | Delete | `DELETE /project/:id/:type/:entityId` | 204 |
 | Compile | `POST /project/:id/compile` | returns `outputFiles` and `clsiServerId` |
 | Word count | `GET /project/:id/wordcount` | |
+| History | `GET /project/:id/updates?min_count=` | version ranges, authors, changed paths |
+| Version content | `GET /project/:id/diff?pathname=&from=V&to=V` | equal from and to returns the whole file |
+| Diff | `GET /project/:id/diff?pathname=&from=&to=` | segments keyed `u`, `i`, `d` |
 
 `:type` is `doc`, `file` or `folder`.
 
@@ -224,7 +237,7 @@ Confirmed live against a real account, not assumed:
 | `npm run setup` | Same, assuming dependencies are installed |
 | `npm run login` | Sign in fresh in a clean browser window |
 | `npm run login:browser -- --real-profile` | Reuse the session from your everyday browser, which must be closed |
-| `npm run mcp-check` | Drive the built server as a real MCP client and assert 16 behaviours |
+| `npm run mcp-check` | Drive the built server as a real MCP client and assert 19 behaviours |
 | `npm run read -- "<project>"` | Inspect a project from the terminal |
 | `npm run recon` | Read-only probe of every endpoint |
 | `npm run smoke` | End-to-end write test in a throwaway project |
