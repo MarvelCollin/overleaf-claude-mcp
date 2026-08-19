@@ -15,6 +15,7 @@ import {
 } from "./tree.js";
 
 const TREE_TTL_MS = Number(process.env.OVERLEAF_TREE_TTL_MS ?? 15_000);
+const DOC_GREP_LIMIT = Number(process.env.OVERLEAF_DOC_GREP_LIMIT ?? 40);
 
 const MIME_BY_EXTENSION: Record<string, string> = {
   ".png": "image/png",
@@ -77,13 +78,31 @@ export class Workspace {
       found = findEntry(tree, filePath);
     }
     if (!found) {
-      const candidates = tree.entries
+      const wanted = normalizePath(filePath).toLowerCase();
+      const wantedName = basename(wanted);
+      const near = tree.entries
         .filter((e) => e.type !== "folder")
-        .map((e) => e.path)
-        .slice(0, 60);
-      throw new Error(
-        `"${filePath}" not found in project ${projectId}. Files: ${candidates.join(", ")}`,
-      );
+        .map((e) => {
+          const lower = e.path.toLowerCase();
+          let score = 0;
+          if (basename(lower) === wantedName) score += 3;
+          if (lower.includes(wanted) || wanted.includes(lower)) score += 2;
+          if (basename(lower).startsWith(wantedName.slice(0, 4))) score += 1;
+          return { path: e.path, score };
+        })
+        .filter((c) => c.score > 0)
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5)
+        .map((c) => c.path);
+
+      const hint = near.length
+        ? `Did you mean: ${near.join(", ")}`
+        : `Files: ${tree.entries
+            .filter((e) => e.type !== "folder")
+            .map((e) => e.path)
+            .slice(0, 40)
+            .join(", ")}`;
+      throw new Error(`"${filePath}" not found in project ${projectId}. ${hint}`);
     }
     return found;
   }
@@ -196,6 +215,18 @@ export class Workspace {
     return zip;
   }
 
+  private scan(path: string, content: string, regex: RegExp, hits: GrepHit[], max: number): boolean {
+    const lines = content.split(/\r?\n/);
+    for (let i = 0; i < lines.length; i += 1) {
+      const line = lines[i] ?? "";
+      if (regex.test(line)) {
+        hits.push({ path, line: i + 1, text: line.trim().slice(0, 400) });
+        if (hits.length >= max) return true;
+      }
+    }
+    return false;
+  }
+
   async grep(
     projectId: string,
     pattern: string,
@@ -203,20 +234,29 @@ export class Workspace {
   ): Promise<GrepHit[]> {
     const regex = new RegExp(pattern, options.flags ?? "i");
     const max = options.maxMatches ?? 200;
-    const zip = await this.zip(projectId);
     const hits: GrepHit[] = [];
 
+    const tree = await this.tree(projectId);
+    const docs = tree.entries.filter((e) => e.type === "doc");
+
+    if (docs.length <= DOC_GREP_LIMIT) {
+      const contents = await Promise.all(
+        docs.map(async (doc) => ({
+          path: doc.path,
+          content: await this.client.readDoc(projectId, doc.id),
+        })),
+      );
+      for (const doc of contents) {
+        if (this.scan(doc.path, doc.content, regex, hits, max)) break;
+      }
+      return hits;
+    }
+
+    const zip = await this.zip(projectId);
     for (const entry of zip.getEntries()) {
       if (entry.isDirectory) continue;
       if (isImage(entry.entryName) || mimeFor(entry.entryName) === "application/pdf") continue;
-      const lines = entry.getData().toString("utf8").split(/\r?\n/);
-      for (let i = 0; i < lines.length; i += 1) {
-        const line = lines[i] ?? "";
-        if (regex.test(line)) {
-          hits.push({ path: entry.entryName, line: i + 1, text: line.trim().slice(0, 400) });
-          if (hits.length >= max) return hits;
-        }
-      }
+      if (this.scan(entry.entryName, entry.getData().toString("utf8"), regex, hits, max)) break;
     }
     return hits;
   }
