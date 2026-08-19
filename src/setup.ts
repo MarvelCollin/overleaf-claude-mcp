@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { BASE_URL, SESSION_FILE } from "./config.js";
 import { SessionStore } from "./auth/session.js";
 import { captureSession } from "./auth/login.js";
+import { importBrowserSession } from "./auth/import-browser.js";
 import { OverleafClient } from "./overleaf/client.js";
 import { Workspace } from "./overleaf/workspace.js";
 
@@ -72,10 +73,24 @@ async function main(): Promise<void> {
   if (await sessionWorks()) {
     ok(`existing session at ${SESSION_FILE} still works`);
   } else {
-    ok("no working session, opening a browser so you can sign in");
-    const count = await captureSession();
-    ok(`saved ${count} cookies to ${SESSION_FILE}`);
-    if (!(await sessionWorks())) throw new Error("Saved a session but Overleaf still refused it.");
+    let imported = false;
+    if (await ask("      No session yet. Reuse the Overleaf login from your everyday browser?")) {
+      ok("that browser must be fully closed for this to work");
+      try {
+        const count = await importBrowserSession(undefined, true);
+        imported = await sessionWorks();
+        ok(imported ? `imported ${count} cookies from your browser` : "import produced an unusable session");
+      } catch (err) {
+        ok(err instanceof Error ? err.message : String(err));
+      }
+    }
+
+    if (!imported) {
+      ok("opening a browser so you can sign in");
+      const count = await captureSession();
+      ok(`saved ${count} cookies to ${SESSION_FILE}`);
+      if (!(await sessionWorks())) throw new Error("Saved a session but Overleaf still refused it.");
+    }
   }
 
   step(4, "Verifying against Overleaf");
