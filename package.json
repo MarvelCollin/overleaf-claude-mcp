@@ -3,10 +3,36 @@
   "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "MCP server exposing your Overleaf projects to Claude via an authenticated browser session.",
+  "description": "MCP server that connects Claude to Overleaf for reading, editing, compiling and version history on the free tier",
+  "license": "MIT",
+  "author": "MarvelCollin",
+  "homepage": "https://github.com/MarvelCollin/overleaf-claude-mcp#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/MarvelCollin/overleaf-claude-mcp.git"
+  },
+  "bugs": {
+    "url": "https://github.com/MarvelCollin/overleaf-claude-mcp/issues"
+  },
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "claude",
+    "overleaf",
+    "latex",
+    "tex",
+    "automation",
+    "ai",
+    "typescript"
+  ],
   "bin": {
     "overleaf-claude-mcp": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
     "watch": "tsc --watch",
