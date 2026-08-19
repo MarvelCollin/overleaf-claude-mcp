@@ -137,7 +137,7 @@ async function main(): Promise<void> {
   }
 
   step(5, "Registering with Claude Code");
-  const command = `claude mcp add overleaf -- node "${ENTRY}"`;
+  const command = `claude mcp add overleaf -s user -- node "${ENTRY}"`;
   const claudeVersion = spawnSync("claude", ["--version"], { shell: true, stdio: "ignore" });
 
   if (claudeVersion.status !== 0) {
@@ -148,7 +148,7 @@ async function main(): Promise<void> {
   } else if (await ask("      Register this server with Claude Code now?")) {
     const registered = spawnSync(
       "claude",
-      ["mcp", "add", "overleaf", "--", "node", JSON.stringify(ENTRY)],
+      ["mcp", "add", "overleaf", "-s", "user", "--", "node", `"${ENTRY}"`],
       { cwd: ROOT, stdio: "inherit", shell: true },
     ).status === 0;
     ok(registered ? "registered" : `registration failed, run it yourself: ${command}`);
