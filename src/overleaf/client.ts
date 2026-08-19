@@ -33,6 +33,31 @@ export interface UploadResult {
   entity_type?: string;
 }
 
+export interface UpdateMetaUser {
+  first_name?: string;
+  last_name?: string;
+  email?: string;
+  id?: string;
+}
+
+export interface ProjectUpdate {
+  fromV: number;
+  toV: number;
+  pathnames: string[];
+  meta?: { users?: UpdateMetaUser[]; start_ts?: number; end_ts?: number };
+}
+
+export interface UpdatesResult {
+  updates: ProjectUpdate[];
+}
+
+export interface DiffSegment {
+  u?: string;
+  i?: string;
+  d?: string;
+  meta?: { users?: UpdateMetaUser[]; start_ts?: number; end_ts?: number };
+}
+
 export interface EntitiesResult {
   project_id: string;
   entities: { path: string; type: "doc" | "file" }[];
@@ -301,6 +326,32 @@ export class OverleafClient {
     await this.sendJson(`/project/${projectId}/${type}/${entityId}/move`, "POST", {
       folder_id: folderId,
     });
+  }
+
+  async updates(projectId: string, minCount = 10): Promise<UpdatesResult> {
+    const response = await this.requestOk(
+      `/project/${projectId}/updates?min_count=${minCount}`,
+      { headers: { accept: "application/json" } },
+    );
+    return (await response.json()) as UpdatesResult;
+  }
+
+  async diff(
+    projectId: string,
+    pathname: string,
+    from: number,
+    to: number,
+  ): Promise<DiffSegment[]> {
+    const query = new URLSearchParams({
+      pathname,
+      from: String(from),
+      to: String(to),
+    });
+    const response = await this.requestOk(`/project/${projectId}/diff?${query.toString()}`, {
+      headers: { accept: "application/json" },
+    });
+    const body = (await response.json()) as { diff?: DiffSegment[] };
+    return body.diff ?? [];
   }
 
   async wordCount(projectId: string): Promise<unknown> {
