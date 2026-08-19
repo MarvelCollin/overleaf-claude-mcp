@@ -16,19 +16,21 @@ Cookies are refreshed automatically as Overleaf rotates them. When the session f
 
 ## Setup
 
-```bash
-npm install
-npm run login
-npm run build
-```
-
-Register with Claude Code:
+One command. On Windows:
 
 ```bash
-claude mcp add overleaf -- node C:/CoolYEAH/overleaf-claude-mcp/dist/index.js
+setup.cmd
 ```
 
-Or add it to an MCP config file:
+On macOS or Linux:
+
+```bash
+./setup.sh
+```
+
+It installs dependencies, builds, opens a browser for you to sign in to Overleaf, reads one of your projects back to prove the connection works, and offers to register the server with Claude Code. Re-running it is safe: an existing working session is reused and nothing is overwritten.
+
+If you would rather register by hand, or you use a different MCP client:
 
 ```json
 {
@@ -39,6 +41,18 @@ Or add it to an MCP config file:
     }
   }
 }
+```
+
+To check a project from the terminal without going through Claude:
+
+```bash
+npm run read -- "Efficient Reasoning"
+```
+
+That prints the file tree and every section heading. Add a file path to dump one file:
+
+```bash
+npm run read -- "Efficient Reasoning" sections/methodology.tex
 ```
 
 ## Usage
@@ -112,6 +126,12 @@ Confirmed live against a real account, not assumed:
 `:type` is `doc`, `file` or `folder`.
 
 ## Checking it still works
+
+```bash
+npm run setup
+```
+
+Re-run it any time. It reuses a working session and re-verifies the connection, so it doubles as a health check.
 
 ```bash
 npm run recon
