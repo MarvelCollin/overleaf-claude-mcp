@@ -1,5 +1,7 @@
 import { checkReferences, stripComments } from "../overleaf/check.js";
 import { filterEntries, formatLog, parseLatexLog, reflow } from "../overleaf/latex-log.js";
+import { buildOutline } from "../overleaf/outline.js";
+import { isCompileArtifact } from "../overleaf/artifacts.js";
 import { check, report } from "./shared-checks.js";
 
 const LOG = [
@@ -118,6 +120,16 @@ function run(): void {
   check("check merges log findings", merged.some((i) => i.key === "nobody2020"), JSON.stringify(merged.map((i) => i.key)));
 
   check("stripComments keeps escaped percent", stripComments(String.raw`50\% off % gone`) === String.raw`50\% off `, stripComments(String.raw`50\% off % gone`));
+
+  const outline = buildOutline(TEX);
+  check("outline lists sections", outline.filter((n) => n.kind === "section").length === 2, JSON.stringify(outline.map((n) => n.kind)));
+  check("outline keeps section titles", outline.some((n) => n.title === "Method"), JSON.stringify(outline.map((n) => n.title)));
+  check("outline lists captions", outline.some((n) => n.kind === "caption" && n.title === "A table of results"), JSON.stringify(outline.filter((n) => n.kind === "caption")));
+  check("outline lists labels", outline.some((n) => n.kind === "label" && n.title === "tab:one"), JSON.stringify(outline.filter((n) => n.kind === "label").map((n) => n.title)));
+
+  check("output.log is an artifact", isCompileArtifact("output.log"));
+  check("output.chktex is an artifact", isCompileArtifact("output.chktex"));
+  check("main.tex is not an artifact", !isCompileArtifact("main.tex"));
 
   report();
 }

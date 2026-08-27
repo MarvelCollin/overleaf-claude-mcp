@@ -3,6 +3,7 @@ import path from "node:path";
 import { z } from "zod";
 import { MAX_READ_CHARS } from "../config.js";
 import { isCompileArtifact } from "../overleaf/artifacts.js";
+import { formatOutline } from "../overleaf/outline.js";
 import { renderTree } from "../overleaf/tree.js";
 import { isImage, mimeFor } from "../overleaf/workspace.js";
 import { failure, guard, image, text } from "./registry.js";
@@ -60,28 +61,30 @@ export const registerFileTools: ToolModule = (server, ctx) => {
     {
       title: "Read a text file",
       description:
-        "Read a LaTeX or other text file. Long files are truncated; use startLine and endLine to page through them.",
+        "Read a LaTeX or other text file. Use startLine and endLine to page through it. A file too large to return whole comes back as a structure outline of its sections, labels and captions instead; pass outline to ask for that outline at any size.",
       inputSchema: {
         filePath: z.string(),
         startLine: z.number().int().positive().optional(),
         endLine: z.number().int().positive().optional(),
+        outline: z.boolean().optional(),
         projectId: z.string().optional(),
       },
     },
-    async ({ filePath, startLine, endLine, projectId }) =>
+    async ({ filePath, startLine, endLine, outline, projectId }) =>
       guard(async () => {
         const id = await ctx.activeProject(projectId);
         const content = await ctx.workspace.readText(id, filePath);
         const lines = content.split("\n");
 
+        if (outline) return text(formatOutline(filePath, content));
         if (startLine || endLine) return renderSlice(filePath, lines, startLine, endLine);
         if (content.length <= MAX_READ_CHARS) return text(content);
 
         const cutoff = linesWithinBudget(lines);
         return text(
-          `${filePath} is ${content.length} chars over ${lines.length} lines. Showing lines 1-${cutoff}.\n` +
-            `Read the rest with startLine ${cutoff + 1}, or search it with overleaf_grep.\n\n` +
-            lines.slice(0, cutoff).join("\n"),
+          `${filePath} is ${content.length} chars over ${lines.length} lines, too large to return whole.\n` +
+            `Read any part of it with startLine and endLine, for example startLine 1 endLine ${cutoff}, or search it with overleaf_grep.\n\n` +
+            formatOutline(filePath, content),
         );
       }),
   );
