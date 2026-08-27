@@ -68,7 +68,8 @@ export const registerEditingTools: ToolModule = (server, ctx) => {
     "overleaf_upload_file",
     {
       title: "Upload a local file",
-      description: "Upload a local file, such as a figure, into the project.",
+      description:
+        "Upload any local file into the project by path, text or binary. Use this instead of overleaf_write_file whenever the content already exists on disk, including large .tex, .bib and .csv files, because nothing has to be retyped as a string.",
       inputSchema: {
         localPath: z.string(),
         filePath: z.string(),
