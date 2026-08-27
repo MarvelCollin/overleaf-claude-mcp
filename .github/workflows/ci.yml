@@ -33,5 +33,8 @@ jobs:
       - name: Build
         run: npm run build
 
+      - name: Parser and checker assertions
+        run: npm test
+
       - name: Verify the server starts and lists its tools
         run: node scripts/verify-startup.mjs

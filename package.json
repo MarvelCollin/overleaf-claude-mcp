@@ -45,6 +45,7 @@
     "recon": "tsx src/cli/recon.ts",
     "smoke": "tsx src/cli/smoke.ts",
     "mcp-check": "tsx src/cli/mcp-check.ts",
+    "test": "tsx src/cli/parser-check.ts",
     "start": "node dist/index.js"
   },
   "engines": {
