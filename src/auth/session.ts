@@ -39,6 +39,7 @@ function parseSetCookie(raw: string): StoredCookie | null {
 export class SessionStore {
   private cookies = new Map<string, StoredCookie>();
   private dirty = false;
+  private seenMtimeMs = 0;
 
   constructor(private readonly file: string = SESSION_FILE) {}
 
@@ -50,11 +51,26 @@ export class SessionStore {
       for (const cookie of parsed.cookies ?? []) {
         this.cookies.set(cookie.name, cookie);
       }
+      this.seenMtimeMs = await this.mtimeMs();
       return true;
     } catch (err) {
       if ((err as NodeJS.ErrnoException).code === "ENOENT") return false;
       throw err;
     }
+  }
+
+  private async mtimeMs(): Promise<number> {
+    try {
+      return (await fsp.stat(this.file)).mtimeMs;
+    } catch {
+      return 0;
+    }
+  }
+
+  async reloadIfChanged(): Promise<boolean> {
+    const current = await this.mtimeMs();
+    if (current === this.seenMtimeMs) return false;
+    return await this.load();
   }
 
   replaceAll(cookies: StoredCookie[]): void {
@@ -108,6 +124,7 @@ export class SessionStore {
     await fsp.writeFile(tmp, JSON.stringify(payload, null, 2), { mode: 0o600 });
     await fsp.rename(tmp, this.file);
     this.dirty = false;
+    this.seenMtimeMs = await this.mtimeMs();
   }
 
   get filePath(): string {

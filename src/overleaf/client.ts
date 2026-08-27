@@ -68,7 +68,7 @@ export class OverleafClient {
 
     if (response.status === 401 || new URL(response.url).pathname.startsWith("/login")) {
       throw new AuthError(
-        `Overleaf redirected to login for ${pathname}. The saved session expired. Run "npm run login".`,
+        `Overleaf redirected to login for ${pathname}. The saved session expired. Call overleaf_set_session with a fresh overleaf_session2 cookie, or run "npm run login".`,
       );
     }
     return response;

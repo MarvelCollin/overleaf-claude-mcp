@@ -1,5 +1,6 @@
 import { z } from "zod";
-import { BASE_URL } from "../config.js";
+import { parseCookieInput, saveAndVerify } from "../auth/paste.js";
+import { BASE_URL, SESSION_COOKIE_NAMES } from "../config.js";
 import type { ProjectSummary } from "../overleaf/types.js";
 import { renderTree } from "../overleaf/tree.js";
 import { guard, text } from "./registry.js";
@@ -108,7 +109,7 @@ export const registerProjectTools: ToolModule = (server, ctx) => {
         const found = await ctx.session.load();
         if (!found || !ctx.session.hasSessionCookie()) {
           return text(
-            `No session at ${ctx.session.filePath}.\nRun "npm run setup" in the overleaf-claude-mcp folder.`,
+            `No session at ${ctx.session.filePath}.\nCall overleaf_set_session with a fresh ${SESSION_COOKIE_NAMES[0]} cookie, or run "npm run setup" in the overleaf-claude-mcp folder.`,
           );
         }
         ctx.markSessionLoaded();
@@ -133,6 +134,35 @@ export const registerProjectTools: ToolModule = (server, ctx) => {
             ? `selected project: ${ctx.state.current.name} (${ctx.state.current.id})`
             : "selected project: none",
         );
+        return text(lines.join("\n"));
+      }),
+  );
+
+  server.registerTool(
+    "overleaf_set_session",
+    {
+      title: "Set or refresh the session",
+      description:
+        `Replace the stored Overleaf session with a fresh browser cookie, without restarting the server or editing any file. ` +
+        `Accepts the bare ${SESSION_COOKIE_NAMES[0]} value, a "name=value" pair, or a whole Cookie header. ` +
+        `Get it from a signed-in browser at ${BASE_URL}/project: F12, Application, Cookies, ${SESSION_COOKIE_NAMES[0]}, copy the Value. ` +
+        `The cookie is verified against Overleaf before it is saved and is never echoed back.`,
+      inputSchema: { cookie: z.string() },
+    },
+    async ({ cookie }) =>
+      guard(async () => {
+        await saveAndVerify(parseCookieInput(cookie));
+        await ctx.session.load();
+        ctx.markSessionLoaded();
+
+        const lines = [`Session verified against ${BASE_URL} and saved to ${ctx.session.filePath}.`];
+        const expiry = ctx.session.sessionExpiry();
+        if (expiry) {
+          const days = (expiry.getTime() - Date.now()) / 86_400_000;
+          lines.push(`expires: ${expiry.toISOString()} (${days.toFixed(1)} days)`);
+        }
+        const projects = await ctx.client.listProjects();
+        lines.push(`${projects.length} project(s) visible.`);
         return text(lines.join("\n"));
       }),
   );
