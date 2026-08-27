@@ -121,6 +121,11 @@ export interface ProjectTree {
   entries: TreeEntry[];
 }
 
+export interface TextSource {
+  path: string;
+  content: string;
+}
+
 export interface GrepHit {
   path: string;
   line: number;
@@ -138,9 +143,68 @@ export interface RawProject {
   owner?: { email?: string; firstName?: string; lastName?: string };
 }
 
+export type LogEntryKind =
+  | "error"
+  | "missing-file"
+  | "overfull-hbox"
+  | "underfull-hbox"
+  | "overfull-vbox"
+  | "underfull-vbox"
+  | "undefined-reference"
+  | "undefined-citation"
+  | "duplicate-label"
+  | "font-warning"
+  | "package-warning"
+  | "class-warning"
+  | "latex-warning";
+
 export interface LogEntry {
   level: "error" | "warning";
+  kind: LogEntryKind;
   message: string;
   file?: string;
   line?: number;
+  endLine?: number;
+  overflowPt?: number;
+  key?: string;
+}
+
+export interface ParsedLog {
+  entries: LogEntry[];
+  pages?: number;
+  outputPath?: string;
+}
+
+export interface LogFilter {
+  severity?: "error" | "warning" | "all";
+  kind?: string;
+  file?: string;
+  limit?: number;
+  offset?: number;
+  group?: boolean;
+}
+
+export interface CompileSnapshot {
+  result: CompileResult;
+  compiledAt: number;
+  fromCache: boolean;
+}
+
+export interface OutlineNode {
+  kind: string;
+  title: string;
+  line: number;
+  depth: number;
+}
+
+export interface CheckIssue {
+  kind:
+    | "undefined-reference"
+    | "undefined-citation"
+    | "uncited-entry"
+    | "duplicate-label"
+    | "unused-label";
+  key: string;
+  detail: string;
+  locations: string[];
 }

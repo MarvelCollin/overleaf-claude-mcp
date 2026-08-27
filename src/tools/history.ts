@@ -140,6 +140,7 @@ export const registerHistoryTools: ToolModule = (server, ctx) => {
           return failure(new Error(`${filePath} had no content at version ${version}.`));
         }
         await ctx.workspace.writeText(id, filePath, content, { force: true });
+        ctx.artifacts.invalidate(id);
         return text(`Restored ${filePath} to its v${version} contents (${content.length} chars).`);
       }),
   );

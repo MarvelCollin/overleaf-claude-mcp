@@ -22,6 +22,7 @@ export const registerEditingTools: ToolModule = (server, ctx) => {
       guard(async () => {
         const id = await ctx.activeProject(projectId);
         const type = await ctx.workspace.writeText(id, filePath, content, { force });
+        ctx.artifacts.invalidate(id);
         return text(`Wrote ${content.length} chars to ${filePath} (stored as ${type}).`);
       }),
   );
@@ -58,6 +59,7 @@ export const registerEditingTools: ToolModule = (server, ctx) => {
           ? original.split(oldString).join(newString)
           : original.replace(oldString, newString);
         await ctx.workspace.writeText(id, filePath, updated);
+        ctx.artifacts.invalidate(id);
         return text(`Replaced ${replaceAll ? occurrences : 1} occurrence(s) in ${filePath}.`);
       }),
   );
@@ -78,6 +80,7 @@ export const registerEditingTools: ToolModule = (server, ctx) => {
         const id = await ctx.activeProject(projectId);
         const bytes = await fsp.readFile(path.resolve(localPath));
         const type = await ctx.workspace.writeBinary(id, filePath, bytes);
+        ctx.artifacts.invalidate(id);
         return text(`Uploaded ${bytes.length} bytes to ${filePath} (stored as ${type}).`);
       }),
   );
@@ -112,6 +115,7 @@ export const registerEditingTools: ToolModule = (server, ctx) => {
       guard(async () => {
         const id = await ctx.activeProject(projectId);
         await ctx.workspace.rename(id, filePath, newName);
+        ctx.artifacts.invalidate(id);
         return text(`Renamed ${filePath} to ${newName}.`);
       }),
   );
@@ -131,6 +135,7 @@ export const registerEditingTools: ToolModule = (server, ctx) => {
       guard(async () => {
         const id = await ctx.activeProject(projectId);
         await ctx.workspace.move(id, filePath, destFolder);
+        ctx.artifacts.invalidate(id);
         return text(`Moved ${filePath} into ${destFolder || "the project root"}.`);
       }),
   );
@@ -153,6 +158,7 @@ export const registerEditingTools: ToolModule = (server, ctx) => {
         }
         const id = await ctx.activeProject(projectId);
         const type = await ctx.workspace.remove(id, filePath);
+        ctx.artifacts.invalidate(id);
         return text(`Deleted ${type} ${filePath}.`);
       }),
   );
