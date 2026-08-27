@@ -1,3 +1,4 @@
+import { checkReferences, stripComments } from "../overleaf/check.js";
 import { filterEntries, formatLog, parseLatexLog, reflow } from "../overleaf/latex-log.js";
 import { check, report } from "./shared-checks.js";
 
@@ -25,6 +26,23 @@ const LOG = [
   "                 ",
   "Output written on output.pdf (3 pages, 45678 bytes).",
 ].join("\n");
+
+const TEX = String.raw`
+\documentclass{article}
+\begin{document}
+\section{Intro}\label{sec:intro}
+\section{Method}\label{sec:dup}
+\subsection{Detail}\label{sec:dup}
+See \ref{sec:intro} and \ref{fig:missing} and \cref{tab:one,sec:intro}.
+% \ref{sec:commented} should be ignored
+Cite \citep{knuth1984} and \cite{nobody2020}.
+\begin{table}
+\caption{A table of results}\label{tab:one}
+\end{table}
+\bibitem{knuth1984} Knuth.
+\bibitem{unused1999} Nobody reads this.
+\end{document}
+`;
 
 function run(): void {
   const parsed = parseLatexLog(LOG);
@@ -79,6 +97,27 @@ function run(): void {
   wrapped.push("done");
   const rejoined = reflow(wrapped);
   check("reflow rejoins wrapped lines", rejoined[0] === source, rejoined[0]?.slice(0, 60));
+
+  const issues = checkReferences([
+    { path: "main.tex", content: TEX },
+    { path: "refs.bib", content: "@article{knuth1984, title={TeX}}\n@string{x = {y}}\n" },
+  ]);
+  const kinds = (kind: string): string[] => issues.filter((i) => i.kind === kind).map((i) => i.key);
+
+  check("check finds the dangling ref", kinds("undefined-reference").includes("fig:missing"), JSON.stringify(kinds("undefined-reference")));
+  check("check ignores refs inside comments", !kinds("undefined-reference").includes("sec:commented"), JSON.stringify(kinds("undefined-reference")));
+  check("check splits cref key lists", !kinds("undefined-reference").includes("tab:one"), JSON.stringify(kinds("undefined-reference")));
+  check("check finds the undefined citation", kinds("undefined-citation").includes("nobody2020"), JSON.stringify(kinds("undefined-citation")));
+  check("check accepts a real bib entry", !kinds("undefined-citation").includes("knuth1984"), JSON.stringify(kinds("undefined-citation")));
+  check("check finds the duplicate label", kinds("duplicate-label").includes("sec:dup"), JSON.stringify(kinds("duplicate-label")));
+  check("check finds the uncited bibitem", kinds("uncited-entry").includes("unused1999"), JSON.stringify(kinds("uncited-entry")));
+  check("check ignores @string as an entry", !kinds("uncited-entry").includes("x"), JSON.stringify(kinds("uncited-entry")));
+  check("check reports unused labels only on request", !issues.some((i) => i.kind === "unused-label"), JSON.stringify(kinds("unused-label")));
+
+  const merged = checkReferences([{ path: "main.tex", content: TEX }], entries);
+  check("check merges log findings", merged.some((i) => i.key === "nobody2020"), JSON.stringify(merged.map((i) => i.key)));
+
+  check("stripComments keeps escaped percent", stripComments(String.raw`50\% off % gone`) === String.raw`50\% off `, stripComments(String.raw`50\% off % gone`));
 
   report();
 }

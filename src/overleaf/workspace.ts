@@ -4,7 +4,7 @@ import AdmZip from "adm-zip";
 import type { OverleafClient } from "./client.js";
 import { joinProject } from "./socket.js";
 import { basename, buildTree, dirname, findEntry, findFolderId, normalizePath } from "./tree.js";
-import type { EntityType, GrepHit, ProjectTree, TreeEntry } from "./types.js";
+import type { EntityType, GrepHit, ProjectTree, TextSource, TreeEntry } from "./types.js";
 
 const TREE_TTL_MS = Number(process.env.OVERLEAF_TREE_TTL_MS ?? 15_000);
 const DOC_GREP_LIMIT = Number(process.env.OVERLEAF_DOC_GREP_LIMIT ?? 40);
@@ -257,6 +257,29 @@ export class Workspace {
     return false;
   }
 
+  async sources(projectId: string): Promise<TextSource[]> {
+    const tree = await this.tree(projectId);
+    const docs = tree.entries.filter((e) => e.type === "doc");
+
+    if (docs.length <= DOC_GREP_LIMIT) {
+      return await Promise.all(
+        docs.map(async (doc) => ({
+          path: doc.path,
+          content: await this.client.readDoc(projectId, doc.id),
+        })),
+      );
+    }
+
+    const zip = await this.zip(projectId);
+    const sources: TextSource[] = [];
+    for (const entry of zip.getEntries()) {
+      if (entry.isDirectory) continue;
+      if (isImage(entry.entryName) || mimeFor(entry.entryName) === "application/pdf") continue;
+      sources.push({ path: entry.entryName, content: entry.getData().toString("utf8") });
+    }
+    return sources;
+  }
+
   async grep(
     projectId: string,
     pattern: string,
@@ -266,27 +289,8 @@ export class Workspace {
     const max = options.maxMatches ?? 200;
     const hits: GrepHit[] = [];
 
-    const tree = await this.tree(projectId);
-    const docs = tree.entries.filter((e) => e.type === "doc");
-
-    if (docs.length <= DOC_GREP_LIMIT) {
-      const contents = await Promise.all(
-        docs.map(async (doc) => ({
-          path: doc.path,
-          content: await this.client.readDoc(projectId, doc.id),
-        })),
-      );
-      for (const doc of contents) {
-        if (this.scan(doc.path, doc.content, regex, hits, max)) break;
-      }
-      return hits;
-    }
-
-    const zip = await this.zip(projectId);
-    for (const entry of zip.getEntries()) {
-      if (entry.isDirectory) continue;
-      if (isImage(entry.entryName) || mimeFor(entry.entryName) === "application/pdf") continue;
-      if (this.scan(entry.entryName, entry.getData().toString("utf8"), regex, hits, max)) break;
+    for (const source of await this.sources(projectId)) {
+      if (this.scan(source.path, source.content, regex, hits, max)) break;
     }
     return hits;
   }

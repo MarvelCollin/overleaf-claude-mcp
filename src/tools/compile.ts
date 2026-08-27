@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { describeAge } from "../overleaf/artifacts.js";
+import { checkReferences, formatCheck } from "../overleaf/check.js";
 import { formatLog, parseLatexLog } from "../overleaf/latex-log.js";
 import { saveLocally } from "./files.js";
 import { guard, text } from "./registry.js";
@@ -103,6 +104,47 @@ export const registerCompileTools: ToolModule = (server, ctx) => {
 
         const tail = log.split(/\r?\n/).slice(-60).join("\n");
         return text(`${header.join("\n")}\n\n${summary}\n\nLast 60 log lines:\n${tail}`);
+      }),
+  );
+
+  server.registerTool(
+    "overleaf_check",
+    {
+      title: "Check references and citations",
+      description:
+        "Report dangling \\ref, undefined \\cite, duplicate \\label and uncited bibliography entries across the project, with the file and line of every occurrence.",
+      inputSchema: {
+        projectId: z.string().optional(),
+        includeLog: z.boolean().optional(),
+        reportUnusedLabels: z.boolean().optional(),
+        limit: z.number().int().positive().max(500).optional(),
+      },
+    },
+    async ({ projectId, includeLog, reportUnusedLabels, limit }) =>
+      guard(async () => {
+        const id = await ctx.activeProject(projectId);
+        const sources = await ctx.workspace.sources(id);
+
+        let logEntries: ReturnType<typeof parseLatexLog>["entries"] = [];
+        let note = "static analysis only";
+        if (includeLog !== false) {
+          try {
+            const { text: log, snapshot } = await ctx.artifacts.log(id);
+            if (log) {
+              logEntries = parseLatexLog(log).entries;
+              note = `static analysis plus output.log from a ${snapshot.result.status} compile`;
+            }
+          } catch (err) {
+            note = `static analysis only, the compile log was unavailable: ${
+              err instanceof Error ? err.message : String(err)
+            }`;
+          }
+        }
+
+        const issues = checkReferences(sources, logEntries, { reportUnusedLabels });
+        return text(
+          `${sources.length} source file(s), ${note}\n\n${formatCheck(issues, limit ?? 30)}`,
+        );
       }),
   );
 
