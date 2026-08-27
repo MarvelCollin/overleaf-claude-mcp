@@ -2,6 +2,7 @@ import fsp from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
 import { MAX_READ_CHARS } from "../config.js";
+import { isCompileArtifact } from "../overleaf/artifacts.js";
 import { renderTree } from "../overleaf/tree.js";
 import { isImage, mimeFor } from "../overleaf/workspace.js";
 import { failure, guard, image, text } from "./registry.js";
@@ -106,19 +107,28 @@ export const registerFileTools: ToolModule = (server, ctx) => {
     "overleaf_download_file",
     {
       title: "Download a file",
-      description: "Save any project file, including PDFs and images, to a local path.",
+      description:
+        "Save any project file to a local path, including PDFs, images and compilation artifacts that are not part of the file tree such as output.log, output.blg and output.chktex.",
       inputSchema: {
         filePath: z.string(),
         destPath: z.string(),
+        refresh: z.boolean().optional(),
         projectId: z.string().optional(),
       },
     },
-    async ({ filePath, destPath, projectId }) =>
+    async ({ filePath, destPath, refresh, projectId }) =>
       guard(async () => {
         const id = await ctx.activeProject(projectId);
-        const bytes = await ctx.workspace.readBinary(id, filePath);
+        const artifact = isCompileArtifact(filePath);
+
+        const bytes = artifact
+          ? await ctx.artifacts.fetch(id, filePath, refresh ?? false)
+          : await ctx.workspace.readBinary(id, filePath);
+
         const target = await saveLocally(bytes, destPath);
-        return text(`Saved ${bytes.length} bytes to ${target}`);
+        return text(
+          `Saved ${bytes.length} bytes to ${target}${artifact ? " (compilation artifact)" : ""}`,
+        );
       }),
   );
 
