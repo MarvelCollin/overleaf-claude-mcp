@@ -4,6 +4,30 @@ All notable changes to this project are documented here. Format follows [Keep a 
 
 ## [Unreleased]
 
+### Added
+
+* `overleaf_set_session`, which replaces an expired session with a fresh browser cookie from inside Claude, verified against Overleaf before it is saved
+* `overleaf_check`, reporting dangling `ef`, undefined `\cite`, duplicate `\label` and uncited bibliography entries with the file and line of every occurrence
+* `limit`, `offset`, `severity`, `kind` and `file` on `overleaf_compile_log`, so a log with hundreds of warnings can be paged and narrowed instead of cut off at 40
+* Grouping of log entries by kind and by file before the entries themselves
+* Page count on `overleaf_compile` and `overleaf_download_pdf`
+* `outline` mode on `overleaf_read_file`, listing sections, labels, captions, floats and inputs with line numbers
+* Compile result caching, with every result reporting whether it was recompiled or reused, and a `refresh` flag to force a new compile
+* `npm test`, an offline check of the log parser, reference checker and outline builder
+* `npm run feature-check`, which asserts the new behaviour end to end in a project it creates for the purpose
+
+### Changed
+
+* `overleaf_download_file` now fetches compilation artifacts such as `output.log`, `output.blg` and `output.chktex`, which are not part of the project file tree
+* `overleaf_upload_file` documents that it takes text files as well as binaries, so large documents can be sent from disk instead of retyped as a tool argument
+* `overleaf_read_file` returns a structure outline for a file too large to return whole, rather than a truncated prefix
+* Expired session errors now name `overleaf_set_session` instead of a command the caller may not be able to run
+
+### Fixed
+
+* LaTeX log entries no longer report `(unknown location)`: TeX's 79 column wrapping is reversed, the `(file` and `)` markers are tracked as a stack, and `on input line N`, `at lines N--M`, `l.N` and `file:line:` are all read
+* Overfull and underfull box warnings now carry their line range and overflow amount
+* A session refreshed on disk is picked up by a running server instead of being masked by the in memory copy
 ## [0.2.0]
 
 ### Added

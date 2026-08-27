@@ -79,13 +79,19 @@ claude mcp get overleaf >/dev/null 2>&1 && echo ALREADY || echo NEEDS_ADDING
 
 Tell the user to restart Claude afterwards. MCP servers are only picked up at startup, and forgetting this is the single most common reason someone reports that the tools are missing.
 
+## Refreshing an expired session
+
+Once the server is registered, an expired session no longer needs a terminal. Ask the user for the cookie with the wording below, then call `overleaf_set_session` with it. The tool verifies the value against Overleaf before saving, and the running server picks it up without a restart. Never echo the value back.
+
 ## Verifying, in increasing cost
 
 ```bash
+npm test                          # no credentials, no network, parser assertions
 node scripts/verify-startup.mjs   # no credentials, no network, always safe
 npm run recon                     # read only, hits every endpoint, needs a session
 npm run mcp-check                 # drives the server as a real MCP client, needs a session
 npm run smoke                     # creates a throwaway project and writes to it
+npm run feature-check             # creates its own project and asserts compile, log, check
 ```
 
 Run `verify-startup` freely. Run `smoke` only when the user asks or when you changed the write path, because it leaves a project named `claude-mcp-smoketest` in their account.
@@ -96,7 +102,7 @@ Run `verify-startup` freely. Run `smoke` only when the user asks or when you cha
 
 Run `npm run recon` first. It probes every endpoint read only and reports which one broke, which is faster than reading code. If the user reports that a tool failed, ask them to run `overleaf_status` through Claude, which reports session validity, expiry, and current selection in one line.
 
-Sessions last about five days. An expired session shows up as every tool returning a redirect to login. The fix is the same three methods above.
+Sessions last about five days. An expired session shows up as every tool returning a redirect to login. The fix is `overleaf_set_session`, or any of the three methods above.
 
 ## Rules
 

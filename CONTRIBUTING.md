@@ -13,8 +13,11 @@ Setup builds the project, gets you an Overleaf session, and verifies the connect
 
 ```bash
 npm run build
+npm test
 npm run mcp-check
 ```
+
+`npm test` needs no session and no network. It asserts the LaTeX log parser, the reference checker and the outline builder against fixtures, which is where most of the logic lives.
 
 `mcp-check` spawns the built server and drives it as a real MCP client over stdio, asserting 19 behaviours against a live account. It is currently hardcoded to a specific project name and file paths, so adjust the constants at the top if your account differs.
 
@@ -25,6 +28,14 @@ npm run smoke
 ```
 
 That creates a throwaway project named `claude-mcp-smoketest`, exercises the full write path in it, and leaves it in your account for inspection. Trash it afterwards.
+
+For changes to compiling, the log parser, artifacts or the reference checker:
+
+```bash
+npm run feature-check
+```
+
+That creates its own fresh project, uploads a document with deliberate overfull boxes, a dangling `ef`, an undefined `\cite`, a duplicate `\label` and an uncited `ibitem`, then drives the built server over stdio and asserts the parsed output. It runs against a new project every time rather than an existing one, so it never depends on the state of your account.
 
 ## Layout
 
@@ -51,7 +62,10 @@ src/
     tree.ts           turning a raw project into a flat path list
     workspace.ts      read, write, search and the overwrite guard
     html.ts           reading values out of Overleaf's meta tags
-    latex-log.ts      parsing compiler output
+    latex-log.ts      parsing compiler output into located, kinded entries
+    artifacts.ts      compile caching and fetching output.log and friends
+    check.ts          reference, citation and label validation
+    outline.ts        structure summary of a LaTeX file
   tools/              one module per group of MCP tools
     types.ts          tool result and module signatures
     registry.ts       result helpers and the error boundary
@@ -59,10 +73,13 @@ src/
     files.ts          reading, searching, downloading
     editing.ts        writing, renaming, moving, deleting
     history.ts        versions, diffs, restore
-    compile.ts        compiling, logs, PDF, word count
+    compile.ts        compiling, logs, checks, PDF, word count
   cli/                command line entry points
     types.ts          shapes used by the command line tools
     shared.ts         paths, process helpers, session checks, registration
+    shared-checks.ts  pass and fail counters used by the check scripts
+    parser-check.ts   offline assertions for the parsers, run by npm test
+    feature-check.ts  live assertions driven through the server on a new project
 scripts/
   verify-startup.mjs  credential free check used by CI
 ```

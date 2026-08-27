@@ -174,18 +174,19 @@ If Claude does not reach for the tools, the usual causes are: you did not restar
 | Tool | Purpose |
 | --- | --- |
 | `overleaf_status` | Session health, expiry, and current selection |
+| `overleaf_set_session` | Replace an expired session with a fresh browser cookie |
 | `overleaf_project_url` | Browser URL for the selected project |
 | `overleaf_list_projects` | List projects, marking the selected one |
 | `overleaf_select_project` | Pick the active project by id or name |
 | `overleaf_current_project` | Show which project is selected |
 | `overleaf_list_files` | Full file and folder tree |
-| `overleaf_read_file` | Read a text file, with `startLine` and `endLine` paging |
+| `overleaf_read_file` | Read a text file, with `startLine`/`endLine` paging and an `outline` mode |
 | `overleaf_read_image` | View a figure inline |
-| `overleaf_download_file` | Save any file, including PDFs, locally |
+| `overleaf_download_file` | Save any file locally, including compilation artifacts such as `output.log` |
 | `overleaf_grep` | Regex search across the project |
 | `overleaf_write_file` | Create or overwrite a text file |
 | `overleaf_edit_file` | Exact string replacement inside a file |
-| `overleaf_upload_file` | Upload a local file such as a figure |
+| `overleaf_upload_file` | Upload any local file, text or binary, straight from disk |
 | `overleaf_create_folder` | Create a folder and any missing parents |
 | `overleaf_rename` | Rename a file or folder |
 | `overleaf_move` | Move a file or folder |
@@ -194,12 +195,45 @@ If Claude does not reach for the tools, the usual causes are: you did not restar
 | `overleaf_file_at_version` | Read a file as it was at a past version |
 | `overleaf_diff` | What changed in a file between two versions |
 | `overleaf_restore_file` | Roll a file back, requires `confirm: true` |
-| `overleaf_compile` | Server side compile |
-| `overleaf_compile_log` | Compile and return parsed LaTeX errors |
+| `overleaf_compile` | Server side compile, with page count and output artifacts |
+| `overleaf_compile_log` | Parsed LaTeX errors and warnings with `file:line`, filtering and paging |
+| `overleaf_check` | Dangling `\ref`, undefined `\cite`, duplicate labels, uncited entries |
 | `overleaf_download_pdf` | Compile and save the PDF |
 | `overleaf_word_count` | Compiled word count |
 
 `overleaf_select_project` takes a project id or any part of a project name. If the name matches more than one project it lists the candidates instead of guessing. `overleaf_delete` refuses to run unless `confirm` is true, so Claude cannot delete a file by accident.
+
+#### Refreshing an expired session without leaving Claude
+
+A session lasts about five days. When it expires, paste a fresh `overleaf_session2` value and ask Claude to call `overleaf_set_session`. The cookie is verified against Overleaf before it replaces the stored one, the running server picks it up immediately, and nothing has to be restarted or edited by hand.
+
+#### Reading a large compile log
+
+`overleaf_compile_log` parses the log rather than truncating it. Every entry carries the file and line it came from, including the line range of an overfull box, and entries are tallied by kind and by file first so a paper with hundreds of benign warnings does not bury the three that matter:
+
+```
+0 error(s), 251 warning(s) in the whole log
+
+by kind:
+   187  overfull-hbox
+    61  package-warning
+     3  undefined-reference
+
+by file:
+   201  sections/results.tex
+    50  main.tex
+
+showing 1-40 of 251 matching entr(ies)
+- sections/results.tex:412-414  Overfull \hbox (36.51074pt too wide) in paragraph at lines 412--414
+...
+40 more. Pass offset 40.
+```
+
+Narrow it with `severity`, `kind` and `file`, and page through it with `limit` and `offset`. `overleaf_check` answers the reference questions directly, so you do not have to mine the log for them.
+
+#### Uploading large content
+
+`overleaf_upload_file` takes a `localPath` and works for text as well as binaries. Prefer it over `overleaf_write_file` whenever the content is already on disk: a 120 KB `results.tex` is sent straight from the file instead of being retyped as a tool argument.
 
 ---
 
@@ -207,7 +241,7 @@ If Claude does not reach for the tools, the usual causes are: you did not restar
 
 **Anything failing at all** — ask Claude for `overleaf_status` first. It reports whether the session is alive, when it expires, and what is selected, which usually identifies the problem immediately.
 
-**"No Overleaf session at ..."** — you have not signed in yet, or the session expired. Run `setup.cmd` again.
+**"No Overleaf session at ..."** — you have not signed in yet, or the session expired. Fastest fix from inside Claude: copy a fresh `overleaf_session2` cookie and ask Claude to call `overleaf_set_session` with it. Otherwise run `setup.cmd` again.
 
 **Session reuse says your browser is not signed in** — the browser was still running, so its cookie database was locked and could not be read. Close it completely, including any tray icon or "keep running in background" instance, then retry.
 
@@ -237,7 +271,11 @@ The file tree comes from Overleaf's socket connection, because that is the only 
 
 Text files are read per document, so a read always reflects the current state. `overleaf_grep` fetches the documents directly for projects up to `OVERLEAF_DOC_GREP_LIMIT` docs, which avoids downloading the PDFs and figures that a project archive would drag along; past that limit it falls back to one archive download.
 
-`overleaf_read_file` truncates at `OVERLEAF_MAX_READ_CHARS` and tells you how to page through the rest, so asking for a 280,000 character class file does not flood the conversation. Asking for a path that does not exist suggests the closest real ones rather than dumping the whole file list.
+`overleaf_read_file` stops at `OVERLEAF_MAX_READ_CHARS`. Rather than dumping a prefix, it returns a structure outline of the file, listing every `\section`, `\label`, `\caption`, float and `\input` with its line number, which is usually what a large file was being opened for; `startLine` and `endLine` then fetch the part you want. Pass `outline: true` to get that outline for a file of any size. Asking for a path that does not exist suggests the closest real ones rather than dumping the whole file list.
+
+Compiles are cached for `OVERLEAF_COMPILE_TTL_MS` (default 120s) and invalidated by every write, so reading the log, downloading the PDF and running `overleaf_check` in a row costs one compile rather than three. Every result says whether it was recompiled or reused, and `refresh` forces a new compile. Compilation artifacts are not part of the project file tree, so `overleaf_download_file` recognises `output.log`, `output.blg`, `output.chktex` and the rest and fetches them from the compile output instead.
+
+The log parser reverses TeX's 79 column line wrapping before it reads anything, tracks the `(file` and `)` markers as a stack so every message is attributed to the file that was open, and reads the line numbers TeX actually prints: `on input line N` for warnings, `at lines N--M` for boxes, `l.N` for errors, and the `file:line:` prefix when `-file-line-error` is on.
 
 Writes go through the upload endpoint. Uploading over an existing name is an in place update: the entity id is preserved, so Overleaf history and anyone else in the document keep working. Missing parent folders are created first.
 
@@ -301,7 +339,8 @@ All optional. Copy `.env.example` to `.env` in this folder and it is loaded on s
 | `OVERLEAF_BASE_URL` | `https://www.overleaf.com` | Point at a self-hosted instance |
 | `OVERLEAF_HOME_DIR` | `~/.overleaf-claude-mcp` | Where the session and selection live |
 | `OVERLEAF_SESSION_FILE` | `$OVERLEAF_HOME_DIR/session.json` | |
-| `OVERLEAF_MAX_READ_CHARS` | `60000` | Truncation point for `overleaf_read_file` |
+| `OVERLEAF_MAX_READ_CHARS` | `60000` | Point at which `overleaf_read_file` returns an outline instead |
+| `OVERLEAF_COMPILE_TTL_MS` | `120000` | How long a compile result is reused before recompiling |
 | `OVERLEAF_DOC_GREP_LIMIT` | `40` | Above this many docs, grep uses the archive |
 | `OVERLEAF_TREE_TTL_MS` | `15000` | File tree cache lifetime |
 | `OVERLEAF_SOCKET_TIMEOUT_MS` | `20000` | |
