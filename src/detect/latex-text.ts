@@ -159,18 +159,22 @@ export function normalise(value: string): string {
     .trim();
 }
 
-export function locateSentence(blocks: ProseBlock[], sentence: string): number | undefined {
+export function locateBlock(blocks: ProseBlock[], sentence: string): ProseBlock | undefined {
   const needle = normalise(sentence);
   if (needle.length < 12) return undefined;
 
   for (const block of blocks) {
-    if (normalise(block.text).includes(needle)) return block.line;
+    if (normalise(block.text).includes(needle)) return block;
   }
 
   const head = needle.split(" ").slice(0, 6).join(" ");
   if (head.length < 12) return undefined;
   for (const block of blocks) {
-    if (normalise(block.text).includes(head)) return block.line;
+    if (normalise(block.text).includes(head)) return block;
   }
   return undefined;
+}
+
+export function locateSentence(blocks: ProseBlock[], sentence: string): number | undefined {
+  return locateBlock(blocks, sentence)?.line;
 }

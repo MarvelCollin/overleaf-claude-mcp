@@ -28,3 +28,18 @@ export const USER_AGENT =
 export const MAX_READ_CHARS = Number(process.env.OVERLEAF_MAX_READ_CHARS ?? 60_000);
 
 export const SESSION_COOKIE_NAMES = ["overleaf_session2", "sharelatex.sid", "overleaf_session"];
+
+export const DETECT_TIMEOUT_MS = Number(process.env.OVERLEAF_DETECT_TIMEOUT_MS ?? 90_000);
+
+export const DETECT_MIN_CHARS = Number(process.env.OVERLEAF_DETECT_MIN_CHARS ?? 200);
+
+export const SAPLING_API_KEY = process.env.SAPLING_API_KEY ?? "";
+
+export const GPTZERO_API_KEY = process.env.GPTZERO_API_KEY ?? "";
+
+export const DETECT_BROWSER = (process.env.OVERLEAF_DETECT_BROWSER ?? "chromium") as
+  | "chromium"
+  | "firefox"
+  | "webkit";
+
+export const DETECT_HEADLESS = process.env.OVERLEAF_DETECT_HEADLESS !== "false";
