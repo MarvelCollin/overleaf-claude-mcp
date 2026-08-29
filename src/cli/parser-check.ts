@@ -2,6 +2,7 @@ import { checkReferences, stripComments } from "../overleaf/check.js";
 import { filterEntries, formatLog, parseLatexLog, reflow } from "../overleaf/latex-log.js";
 import { buildOutline } from "../overleaf/outline.js";
 import { isCompileArtifact } from "../overleaf/artifacts.js";
+import { extractProse, locateSentence } from "../detect/latex-text.js";
 import { check, report } from "./shared-checks.js";
 
 const LOG = [
@@ -43,6 +44,29 @@ Cite \citep{knuth1984} and \cite{nobody2020}.
 \end{table}
 \bibitem{knuth1984} Knuth.
 \bibitem{unused1999} Nobody reads this.
+\end{document}
+`;
+
+const PROSE = String.raw`
+\documentclass{article}
+\usepackage{geometry}
+\title{A Study}
+\begin{document}
+\section{Background}
+
+Transformers changed how we model sequences.
+They rely on attention \cite{vaswani2017} and scale with $\alpha$ heads.
+
+\begin{equation}
+\sum_{i=1}^{n} x_i
+\end{equation}
+
+\begin{figure}
+\includegraphics{plot.png}
+\caption{A plot}
+\end{figure}
+
+What \textbf{really matters} is the data from \href{http://x.org}{the dataset}.
 \end{document}
 `;
 
@@ -130,6 +154,31 @@ function run(): void {
   check("output.log is an artifact", isCompileArtifact("output.log"));
   check("output.chktex is an artifact", isCompileArtifact("output.chktex"));
   check("main.tex is not an artifact", !isCompileArtifact("main.tex"));
+
+  const prose = extractProse(PROSE);
+  const flat = prose.text;
+  check("prose drops the preamble", !flat.includes("geometry"), flat);
+  check("prose keeps body sentences", flat.includes("Transformers changed how we model sequences."), flat);
+  check("prose keeps a section title", flat.includes("Background"), flat);
+  check("prose drops display math", !flat.includes("sum_"), flat);
+  check("prose drops inline math", !flat.includes("alpha"), flat);
+  check("prose drops a figure body", !flat.includes("plot.png"), flat);
+  check("prose drops citation keys", !flat.includes("vaswani2017"), flat);
+  check("prose unwraps bold text", flat.includes("really matters"), flat);
+  check("prose keeps the href label", flat.includes("the dataset"), flat);
+  check("prose splits paragraphs", prose.blocks.length >= 3, JSON.stringify(prose.blocks.map((b) => b.line)));
+
+  const target = prose.blocks.find((b) => b.text.includes("Transformers changed"));
+  check("prose records a source line", target?.line === 8, JSON.stringify(prose.blocks));
+  check(
+    "locateSentence maps a sentence back to its line",
+    locateSentence(prose.blocks, "Transformers changed how we model sequences.") === 8,
+    String(locateSentence(prose.blocks, "Transformers changed how we model sequences.")),
+  );
+  check(
+    "locateSentence ignores a sentence that is not there",
+    locateSentence(prose.blocks, "This sentence appears nowhere in the document at all.") === undefined,
+  );
 
   report();
 }
