@@ -206,13 +206,18 @@ If Claude does not reach for the tools, the usual causes are: you did not restar
 
 `overleaf_select_project` takes a project id or any part of a project name. If the name matches more than one project it lists the candidates instead of guessing. `overleaf_delete` refuses to run unless `confirm` is true, so Claude cannot delete a file by accident.
 
+#### Edits are checked for silent damage
+
+`overleaf_write_file` and `overleaf_edit_file` compare the file before and after every write and report anything that changed beyond wording: a number that moved or vanished, a dropped `\cite`, `ef` or `\label`, an unbalanced `egin`. Rewording a paragraph passes silently. Losing a figure from a table, or a citation from a sentence, comes back as a warning on the tool result, so a prose edit cannot quietly corrupt a manuscript.
+
 ### Checking for AI detection and plagiarism
 
 Ask in plain words: *"check my introduction for AI detection"*, *"run the whole paper through a plagiarism check"*, or paste a paragraph and ask *"would this get flagged as AI?"*
 
 Both checks accept the same three inputs: `text` for a pasted passage, `filePath` for one file in the selected project, or `wholeProject` for every `.tex` file at once.
 
-LaTeX is stripped before anything is sent. The preamble, math environments, figures, tables, listings, `\cite`, `ef` and `\label` are all removed, so the detectors score your prose rather than your markup. Every flagged sentence is then mapped back to the file and line it came from, so you can go straight to it and rewrite it.
+LaTeX is stripped before anything is sent. The preamble, math environments, figures, tables, listings, `\cite`, `
+ef` and `\label` are all removed, so the detectors score your prose rather than your markup. Every flagged sentence is then mapped back to the file and line it came from, so you can go straight to it and rewrite it.
 
 ```
 main.tex, 1204 words, 7810 chars

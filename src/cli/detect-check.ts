@@ -3,6 +3,7 @@ import { formatDetection, formatPlagiarism } from "../detect/format.js";
 import { longestRun, sample, sentencesOf, visibleText } from "../detect/plagiarism.js";
 import { parseZeroGpt } from "../detect/providers/zerogpt.js";
 import { decopy } from "../detect/sites/decopy.js";
+import { compareIntegrity, formatIntegrity, isClean } from "../overleaf/integrity.js";
 import type { DetectResult } from "../detect/engine.js";
 import { check, report } from "./shared-checks.js";
 
@@ -161,6 +162,32 @@ function run(): void {
     10,
   );
   check("plagiarism says so when nothing matched", clean.includes("No searched passage was found verbatim"), clean);
+
+  const before = String.raw`We take 2,600 problems and reserve 228 \cite{xia2025leetcode}. See Table~\ref{tab:data}. \begin{table}\label{tab:data}\end{table}`;
+  const reworded = String.raw`We use 2,600 problems and hold out 228 \cite{xia2025leetcode}. Table~\ref{tab:data} lists them. \begin{table}\label{tab:data}\end{table}`;
+  check("integrity passes a pure rewording", isClean(compareIntegrity(before, reworded)), JSON.stringify(compareIntegrity(before, reworded)));
+  check("integrity returns no warning when clean", formatIntegrity(compareIntegrity(before, reworded)) === undefined);
+
+  const dropped = before.replace("228", "128");
+  const numberDrift = compareIntegrity(before, dropped);
+  check("integrity catches a changed number", numberDrift.numbers.dropped.includes("228") && numberDrift.numbers.added.includes("128"), JSON.stringify(numberDrift.numbers));
+  check("integrity warns about a changed number", (formatIntegrity(numberDrift) ?? "").includes("numbers"), String(formatIntegrity(numberDrift)));
+
+  const noCite = compareIntegrity(before, before.replace(String.raw` \cite{xia2025leetcode}`, ""));
+  check("integrity catches a dropped citation", noCite.citations.dropped.includes("xia2025leetcode"), JSON.stringify(noCite.citations));
+  check("integrity ignores digits inside a citation key", noCite.numbers.dropped.length === 0, JSON.stringify(noCite.numbers));
+
+  const noRef = compareIntegrity(before, before.replace(String.raw`Table~\ref{tab:data}`, "the table"));
+  check("integrity catches a dropped reference", noRef.references.dropped.includes("tab:data"), JSON.stringify(noRef.references));
+
+  const noEnv = compareIntegrity(before, before.replace(String.raw`\begin{table}`, ""));
+  check("integrity catches a dropped environment", noEnv.environments.dropped.includes("table"), JSON.stringify(noEnv.environments));
+
+  const twice = compareIntegrity("12 and 12 and 7", "12 and 7");
+  check("integrity counts repeated numbers", twice.numbers.dropped.length === 1 && twice.numbers.dropped[0] === "12", JSON.stringify(twice.numbers));
+
+  const comma = compareIntegrity("a maximum of 16,602, so no trace", "a longest of 16,602. No trace");
+  check("integrity ignores a trailing comma on a number", isClean(comma), JSON.stringify(comma.numbers));
 
   report();
 }

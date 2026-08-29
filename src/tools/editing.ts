@@ -1,6 +1,7 @@
 import fsp from "node:fs/promises";
 import path from "node:path";
 import { z } from "zod";
+import { compareIntegrity, formatIntegrity } from "../overleaf/integrity.js";
 import { failure, guard, text } from "./registry.js";
 import type { ToolModule } from "./types.js";
 
@@ -21,9 +22,22 @@ export const registerEditingTools: ToolModule = (server, ctx) => {
     async ({ filePath, content, force, projectId }) =>
       guard(async () => {
         const id = await ctx.activeProject(projectId);
+
+        let original = "";
+        try {
+          original = await ctx.workspace.readText(id, filePath);
+        } catch {
+          original = "";
+        }
+
         const type = await ctx.workspace.writeText(id, filePath, content, { force });
         ctx.artifacts.invalidate(id);
-        return text(`Wrote ${content.length} chars to ${filePath} (stored as ${type}).`);
+
+        const summary = `Wrote ${content.length} chars to ${filePath} (stored as ${type}).`;
+        if (original.length === 0) return text(summary);
+
+        const warning = formatIntegrity(compareIntegrity(original, content));
+        return text(warning ? `${summary}\n\n${warning}` : summary);
       }),
   );
 
@@ -60,7 +74,12 @@ export const registerEditingTools: ToolModule = (server, ctx) => {
           : original.replace(oldString, newString);
         await ctx.workspace.writeText(id, filePath, updated);
         ctx.artifacts.invalidate(id);
-        return text(`Replaced ${replaceAll ? occurrences : 1} occurrence(s) in ${filePath}.`);
+
+        const warning = formatIntegrity(compareIntegrity(original, updated));
+        const summary = `Replaced ${replaceAll ? occurrences : 1} occurrence(s) in ${filePath}.`;
+        return text(warning ? `${summary}
+
+${warning}` : summary);
       }),
   );
 
