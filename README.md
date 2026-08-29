@@ -5,7 +5,7 @@
 [![Node](https://img.shields.io/badge/node-%3E%3D20-brightgreen.svg)](https://nodejs.org)
 [![MCP](https://img.shields.io/badge/Model%20Context%20Protocol-server-8A2BE2.svg)](https://modelcontextprotocol.io)
 
-Connect Claude to your Overleaf account. Claude can list your projects, pick one, read the LaTeX and the figures, edit files, compile, and pull the PDF back.
+Connect Claude to your Overleaf account. Claude can list your projects, pick one, read the LaTeX and the figures, edit files, compile, and pull the PDF back. It can also run your writing through free AI content detectors and check it for plagiarism, and tell you which sentence, in which file, on which line, was flagged.
 
 Overleaf has no public API on the free tier: the Git bridge and Dropbox sync are Premium features. So this server speaks the same internal HTTP and socket endpoints the Overleaf web app uses, authenticated with a browser session you create once. Every endpoint was read out of Overleaf's own JavaScript bundle and then exercised against a live account. See [Verified endpoints](#verified-endpoints).
 
@@ -200,8 +200,58 @@ If Claude does not reach for the tools, the usual causes are: you did not restar
 | `overleaf_check` | Dangling `\ref`, undefined `\cite`, duplicate labels, uncited entries |
 | `overleaf_download_pdf` | Compile and save the PDF |
 | `overleaf_word_count` | Compiled word count |
+| `overleaf_ai_detect` | Score prose with free AI detectors and list the sentences each one flagged |
+| `overleaf_plagiarism_check` | Find sentences that already exist word for word on the web, with the source URL |
+| `overleaf_detectors` | Which detectors are ready and what each one needs |
 
 `overleaf_select_project` takes a project id or any part of a project name. If the name matches more than one project it lists the candidates instead of guessing. `overleaf_delete` refuses to run unless `confirm` is true, so Claude cannot delete a file by accident.
+
+### Checking for AI detection and plagiarism
+
+Ask in plain words: *"check my introduction for AI detection"*, *"run the whole paper through a plagiarism check"*, or paste a paragraph and ask *"would this get flagged as AI?"*
+
+Both checks accept the same three inputs: `text` for a pasted passage, `filePath` for one file in the selected project, or `wholeProject` for every `.tex` file at once.
+
+LaTeX is stripped before anything is sent. The preamble, math environments, figures, tables, listings, `\cite`, `ef` and `\label` are all removed, so the detectors score your prose rather than your markup. Every flagged sentence is then mapped back to the file and line it came from, so you can go straight to it and rewrite it.
+
+```
+main.tex, 1204 words, 7810 chars
+consensus: 71.5% AI, likely AI, across 2 detector(s)
+
+ZeroGPT    88.0%  Your Text is AI/GPT Generated
+Decopy     55.0%  Decopy rates this as mostly AI generated
+
+flagged by more than one detector (2):
+  main.tex:112  Furthermore, mitochondria play a crucial role in regulating cellular metabolism...
+  main.tex:118  Consequently, it is imperative to acknowledge that the systematic optimisation...
+```
+
+#### How each check works
+
+The AI detectors are the free public ones, and no API key is needed for the defaults:
+
+| Provider | How it is reached | Notes |
+| --- | --- | --- |
+| ZeroGPT | Direct HTTP, the endpoint its own site calls | No key, no quota seen, returns the flagged sentences |
+| Decopy | Playwright drives the real page and the JSON its site fetches is read back | No key, but the anonymous quota runs out after a few checks and resets later |
+| Sapling | Direct HTTP | Only runs if `SAPLING_API_KEY` is set |
+| GPTZero | Direct HTTP | Only runs if `GPTZERO_API_KEY` is set |
+
+Providers that need a key are skipped silently unless you set one, so out of the box you get ZeroGPT and Decopy. Run `overleaf_detectors` to see the current state. Text longer than a provider's limit is split at paragraph boundaries and the scores are averaged by length.
+
+The plagiarism check does not use a plagiarism site. The free ones tested here reported verbatim Wikipedia text as original, so instead each long sentence is searched on the web as an exact phrase, and **every candidate page is then fetched and read** to confirm the wording really appears on it. A sentence is only reported when at least eight consecutive words are found on the page, which is what keeps unrelated search results out of the report. Twelve sentences are sampled evenly across the text by default; raise it with `maxQueries`.
+
+```
+main.tex, checked by web search, confirmed on the source page
+12 passage(s) searched, 1 found verbatim on the web
+8.3% of searched passages matched a source, 91.7% appear original
+
+main.tex:5  Mitochondria have a double membrane structure and use aerobic respiration to generate...
+  Mitochondria - Wikipedia
+  https://en.wikipedia.org/wiki/Mitochondria
+```
+
+A score is evidence, not a verdict. Detectors disagree with each other and all of them flag formal academic prose written by hand, so treat a high number as a prompt to reread the sentence, not as proof of anything.
 
 #### Refreshing an expired session without leaving Claude
 
@@ -327,6 +377,11 @@ Confirmed live against a real account, not assumed:
 | `npm run recon` | Read-only probe of every endpoint |
 | `npm run smoke` | End-to-end write test in a throwaway project |
 | `npm run build` | Compile to `dist/` |
+| `npm test` | Offline parser and detector assertions, no network, no credentials |
+| `npm run detect -- <file or text>` | Run the AI detectors from the terminal |
+| `npm run detect -- <file> --plagiarism` | Run the plagiarism check from the terminal |
+| `npm run detect-live` | Hit the real detectors and assert a known AI sample scores high and a human one low |
+| `npm run detect:setup` | Install the Chromium build Playwright drives |
 
 `npm run smoke` creates a project called `claude-mcp-smoketest`, then exercises write, overwrite, image upload, rename, move, delete and compile. It leaves the project in your account so you can inspect it. Trash it when you are done.
 
@@ -345,6 +400,12 @@ All optional. Copy `.env.example` to `.env` in this folder and it is loaded on s
 | `OVERLEAF_TREE_TTL_MS` | `15000` | File tree cache lifetime |
 | `OVERLEAF_SOCKET_TIMEOUT_MS` | `20000` | |
 | `OVERLEAF_LOGIN_TIMEOUT_MS` | `600000` | How long the login window waits |
+| `OVERLEAF_DETECT_TIMEOUT_MS` | `90000` | How long one detector or page is given to answer |
+| `OVERLEAF_DETECT_MIN_CHARS` | `200` | Least prose a check will accept |
+| `OVERLEAF_DETECT_BROWSER` | `chromium` | Playwright engine: `chromium`, `firefox` or `webkit` |
+| `OVERLEAF_DETECT_HEADLESS` | `true` | Set `false` to watch the detector pages being driven |
+| `SAPLING_API_KEY` | unset | Enables the Sapling detector |
+| `GPTZERO_API_KEY` | unset | Enables the GPTZero detector |
 
 ## Project
 
