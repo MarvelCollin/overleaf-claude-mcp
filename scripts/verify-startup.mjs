@@ -23,6 +23,7 @@ const EXPECTED = [
   "overleaf_restore_file",
   "overleaf_compile",
   "overleaf_ai_detect",
+  "overleaf_plagiarism_check",
   "overleaf_detectors",
 ];
 

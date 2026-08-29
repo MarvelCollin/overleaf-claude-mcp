@@ -10,6 +10,8 @@ interface DecopySentence {
 }
 
 interface DecopyJob {
+  code?: number;
+  message?: { en?: string };
   result?: {
     output?: {
       totalScore?: number;
@@ -39,6 +41,15 @@ function latestJob(captured: Captured[]): DecopyJob["result"] {
   return jobs[jobs.length - 1];
 }
 
+function refusal(captured: Captured[]): string | undefined {
+  for (const entry of [...captured].reverse()) {
+    const body = entry.json as DecopyJob | undefined;
+    const message = body?.message?.en?.trim();
+    if (message && body?.code !== 100000 && body?.code !== 500000) return message;
+  }
+  return undefined;
+}
+
 export const decopy: SiteConfig = {
   name: "decopy",
   label: "Decopy",
@@ -49,11 +60,19 @@ export const decopy: SiteConfig = {
   avoid: /upload|image|code|humaniz/i,
   capture: /api\/decopy\/ai-detector\//,
   ready: /"sentences"\s*:\s*\[\s*\{/,
+  failed: /"code"\s*:\s*2\d{5}|Insufficient/,
   settleMs: 2000,
 
   parse(captured, text): DetectorReport {
     const output = latestJob(captured)?.output;
-    if (!output) throw new Error("Decopy returned no finished job");
+    if (!output) {
+      const message = refusal(captured);
+      throw new Error(
+        message
+          ? `Decopy refused the check: ${message}. Its anonymous free quota is limited, it usually resets after a while.`
+          : "Decopy returned no finished job",
+      );
+    }
 
     const sentences = output.sentences ?? [];
     const flagged: FlaggedSentence[] = sentences

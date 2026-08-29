@@ -19,6 +19,7 @@ export interface CrawlConfig {
   capture: RegExp;
   settleMs?: number;
   ready?: RegExp;
+  failed?: RegExp;
 }
 
 export interface SiteConfig extends CrawlConfig {
@@ -31,6 +32,7 @@ type Browser = Awaited<ReturnType<typeof launch>>;
 
 let shared: Browser | undefined;
 let idleTimer: NodeJS.Timeout | undefined;
+let active = 0;
 
 async function loadPlaywright() {
   try {
@@ -62,16 +64,25 @@ async function launch() {
 }
 
 async function browser(): Promise<Browser> {
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = undefined;
   if (!shared || !shared.isConnected()) shared = await launch();
+  active += 1;
+  return shared;
+}
+
+function release(): void {
+  active = Math.max(0, active - 1);
+  if (active > 0) return;
   if (idleTimer) clearTimeout(idleTimer);
   idleTimer = setTimeout(() => void closeBrowser(), 60_000);
   idleTimer.unref?.();
-  return shared;
 }
 
 export async function closeBrowser(): Promise<void> {
   if (idleTimer) clearTimeout(idleTimer);
   idleTimer = undefined;
+  if (active > 0) return;
   const current = shared;
   shared = undefined;
   if (current?.isConnected()) await current.close().catch(() => undefined);
@@ -83,6 +94,18 @@ export async function runSite(config: SiteConfig, text: string): Promise<Detecto
 
 export async function crawl(config: CrawlConfig, text: string): Promise<Captured[]> {
   const instance = await browser();
+  try {
+    return await drive(instance, config, text);
+  } finally {
+    release();
+  }
+}
+
+async function drive(
+  instance: Browser,
+  config: CrawlConfig,
+  text: string,
+): Promise<Captured[]> {
   const context = await instance.newContext({
     userAgent: USER_AGENT,
     viewport: { width: 1440, height: 900 },
@@ -207,6 +230,7 @@ async function waitForResult(
 
   while (Date.now() < deadline) {
     if (captured.length > 0) {
+      if (config.failed?.test(captured[captured.length - 1]?.body ?? "")) return;
       const ready = config.ready
         ? captured.some((c) => config.ready?.test(c.body))
         : captured.some((c) => c.status < 400);
@@ -240,6 +264,18 @@ export async function searchExact(
   perPhrase: number,
 ): Promise<Map<string, WebHit[]>> {
   const instance = await browser();
+  try {
+    return await queryAll(instance, phrases, perPhrase);
+  } finally {
+    release();
+  }
+}
+
+async function queryAll(
+  instance: Browser,
+  phrases: string[],
+  perPhrase: number,
+): Promise<Map<string, WebHit[]>> {
   const context = await instance.newContext({
     userAgent: USER_AGENT,
     viewport: { width: 1440, height: 900 },

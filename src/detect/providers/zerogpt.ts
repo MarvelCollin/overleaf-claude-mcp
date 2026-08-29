@@ -3,7 +3,7 @@ import type { DetectorProvider, DetectorReport } from "../types.js";
 
 const ENDPOINT = "https://api.zerogpt.com/api/detect/detectText";
 
-interface ZeroGptResponse {
+export interface ZeroGptResponse {
   success?: boolean;
   message?: string;
   data?: {
@@ -27,23 +27,28 @@ export const zerogpt: DetectorProvider = {
   },
 
   async detect(text: string): Promise<DetectorReport> {
-    const body = await postJson<ZeroGptResponse>(
-      ENDPOINT,
-      { input_text: text },
-      { origin: "https://www.zerogpt.com", referer: "https://www.zerogpt.com/" },
+    return parseZeroGpt(
+      await postJson<ZeroGptResponse>(
+        ENDPOINT,
+        { input_text: text },
+        { origin: "https://www.zerogpt.com", referer: "https://www.zerogpt.com/" },
+      ),
+      text,
     );
-
-    const data = body.data;
-    if (!data || typeof data.fakePercentage !== "number") {
-      throw new Error(body.message ?? "no detection data in the response");
-    }
-
-    return {
-      provider: zerogpt.label,
-      aiPercentage: data.fakePercentage,
-      verdict: data.feedback ?? "",
-      flagged: (data.h ?? []).map((sentence) => ({ text: sentence })),
-      words: data.textWords ?? countWords(text),
-    };
   },
 };
+
+export function parseZeroGpt(body: ZeroGptResponse, text: string): DetectorReport {
+  const data = body.data;
+  if (!data || typeof data.fakePercentage !== "number") {
+    throw new Error(body.message ?? "no detection data in the response");
+  }
+
+  return {
+    provider: zerogpt.label,
+    aiPercentage: data.fakePercentage,
+    verdict: data.feedback ?? "",
+    flagged: (data.h ?? []).map((sentence) => ({ text: sentence })),
+    words: data.textWords ?? countWords(text),
+  };
+}

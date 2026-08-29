@@ -45,11 +45,12 @@
     "recon": "tsx src/cli/recon.ts",
     "smoke": "tsx src/cli/smoke.ts",
     "mcp-check": "tsx src/cli/mcp-check.ts",
-    "test": "tsx src/cli/parser-check.ts",
+    "test": "tsx src/cli/parser-check.ts && tsx src/cli/detect-check.ts",
     "feature-check": "tsx src/cli/feature-check.ts",
     "start": "node dist/index.js",
     "detect": "tsx src/cli/detect.ts",
-    "detect:setup": "playwright install chromium"
+    "detect:setup": "playwright install chromium",
+    "detect-live": "tsx src/cli/detect-live.ts"
   },
   "engines": {
     "node": ">=20"
