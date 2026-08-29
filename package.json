@@ -47,7 +47,9 @@
     "mcp-check": "tsx src/cli/mcp-check.ts",
     "test": "tsx src/cli/parser-check.ts",
     "feature-check": "tsx src/cli/feature-check.ts",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "detect": "tsx src/cli/detect.ts",
+    "detect:setup": "playwright install chromium"
   },
   "engines": {
     "node": ">=20"
@@ -55,6 +57,7 @@
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
     "adm-zip": "^0.6.0",
+    "playwright": "^1.62.1",
     "ws": "^8.21.3",
     "zod": "^4.4.3"
   },
@@ -62,7 +65,6 @@
     "@types/adm-zip": "^0.5.8",
     "@types/node": "^26.2.0",
     "@types/ws": "^8.18.1",
-    "playwright": "^1.62.1",
     "tsx": "^4.23.12",
     "typescript": "^7.0.2"
   }

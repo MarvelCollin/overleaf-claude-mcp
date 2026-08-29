@@ -1,5 +1,5 @@
 import { locateSentence, normalise } from "./latex-text.js";
-import { PROVIDERS, providerByName } from "./providers/index.js";
+import { ALL_PROVIDERS, defaultProviders, providerByName } from "./providers/index.js";
 import type {
   DetectorOutcome,
   DetectorProvider,
@@ -148,10 +148,14 @@ export async function detect(request: DetectRequest): Promise<DetectResult> {
   const wanted = request.providers?.length
     ? request.providers.flatMap((name) => {
         const found = providerByName(name);
-        if (!found) throw new Error(`unknown provider "${name}". Known: ${PROVIDERS.map((p) => p.name).join(", ")}`);
+        if (!found) {
+          throw new Error(
+            `unknown provider "${name}". Known: ${ALL_PROVIDERS.map((p) => p.name).join(", ")}`,
+          );
+        }
         return [found];
       })
-    : PROVIDERS;
+    : defaultProviders();
 
   const outcomes = await Promise.all(wanted.map((provider) => runProvider(provider, request)));
   const scored = outcomes.flatMap((o) => (o.report ? [o.report.aiPercentage] : []));
