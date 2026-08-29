@@ -94,7 +94,13 @@ async function main(): Promise<void> {
   }
 
   if (args.includes("--plagiarism")) {
-    const report = await checkPlagiarism({ text: prose.text, blocks: prose.blocks, path });
+    const max = Number(args.find((a) => a.startsWith("--max="))?.split("=")[1] ?? 12);
+    const report = await checkPlagiarism({
+      text: prose.text,
+      blocks: prose.blocks,
+      path,
+      maxQueries: max,
+    });
     console.log(formatPlagiarism(report, source, 20));
     await closeBrowser();
     return;
