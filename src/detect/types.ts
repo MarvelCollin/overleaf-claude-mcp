@@ -1,6 +1,7 @@
 export interface ProseBlock {
   text: string;
   line: number;
+  path?: string;
 }
 
 export interface ProseDocument {

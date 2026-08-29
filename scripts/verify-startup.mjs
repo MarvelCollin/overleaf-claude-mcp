@@ -22,6 +22,8 @@ const EXPECTED = [
   "overleaf_diff",
   "overleaf_restore_file",
   "overleaf_compile",
+  "overleaf_ai_detect",
+  "overleaf_detectors",
 ];
 
 let failures = 0;

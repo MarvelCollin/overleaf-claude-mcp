@@ -5,6 +5,7 @@ import { registerFileTools } from "./files.js";
 import { registerEditingTools } from "./editing.js";
 import { registerHistoryTools } from "./history.js";
 import { registerCompileTools } from "./compile.js";
+import { registerDetectTools } from "./detect.js";
 import type { ToolModule } from "./types.js";
 
 const MODULES: ToolModule[] = [
@@ -13,6 +14,7 @@ const MODULES: ToolModule[] = [
   registerEditingTools,
   registerHistoryTools,
   registerCompileTools,
+  registerDetectTools,
 ];
 
 export function registerTools(server: McpServer, context: AppContext): void {

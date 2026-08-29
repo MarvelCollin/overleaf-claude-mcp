@@ -1,4 +1,4 @@
-import { locateSentence, normalise } from "./latex-text.js";
+import { locateBlock, normalise } from "./latex-text.js";
 import { ALL_PROVIDERS, defaultProviders, providerByName } from "./providers/index.js";
 import type {
   DetectorOutcome,
@@ -111,8 +111,9 @@ async function runProvider(
     const report = merge(reports, provider);
     if (request.blocks) {
       for (const sentence of report.flagged) {
-        sentence.line = locateSentence(request.blocks, sentence.text);
-        sentence.path = request.path;
+        const block = locateBlock(request.blocks, sentence.text);
+        sentence.line = block?.line;
+        sentence.path = block?.path ?? request.path;
       }
     }
     return { provider: provider.label, report };
