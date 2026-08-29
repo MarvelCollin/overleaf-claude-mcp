@@ -8,7 +8,7 @@ export interface Captured {
   json?: unknown;
 }
 
-export interface SiteConfig {
+export interface CrawlConfig {
   name: string;
   label: string;
   url: string;
@@ -19,6 +19,9 @@ export interface SiteConfig {
   capture: RegExp;
   settleMs?: number;
   ready?: RegExp;
+}
+
+export interface SiteConfig extends CrawlConfig {
   parse(captured: Captured[], text: string): DetectorReport;
 }
 
@@ -75,6 +78,10 @@ export async function closeBrowser(): Promise<void> {
 }
 
 export async function runSite(config: SiteConfig, text: string): Promise<DetectorReport> {
+  return config.parse(await crawl(config, text), text);
+}
+
+export async function crawl(config: CrawlConfig, text: string): Promise<Captured[]> {
   const instance = await browser();
   const context = await instance.newContext({
     userAgent: USER_AGENT,
@@ -126,7 +133,7 @@ export async function runSite(config: SiteConfig, text: string): Promise<Detecto
     if (captured.length === 0) {
       throw new Error(`${config.label} returned no response matching ${config.capture}`);
     }
-    return config.parse(captured, text);
+    return captured;
   } finally {
     await context.close().catch(() => undefined);
   }
@@ -168,7 +175,7 @@ async function enter(
 
 async function submit(
   page: Awaited<ReturnType<Browser["newPage"]>>,
-  config: SiteConfig,
+  config: CrawlConfig,
 ): Promise<string | null> {
   return await page.evaluate(
     ({ want, skip }: { want: string; skip: string | null }) => {
@@ -192,7 +199,7 @@ async function submit(
 
 async function waitForResult(
   page: Awaited<ReturnType<Browser["newPage"]>>,
-  config: SiteConfig,
+  config: CrawlConfig,
   captured: Captured[],
 ): Promise<void> {
   const deadline = Date.now() + DETECT_TIMEOUT_MS;
@@ -210,4 +217,79 @@ async function waitForResult(
     }
     await page.waitForTimeout(700);
   }
+}
+
+export interface WebHit {
+  url: string;
+  title: string;
+  snippet: string;
+}
+
+function decodeBing(href: string): string {
+  const match = /[?&]u=a1([^&]+)/.exec(href);
+  if (!match?.[1]) return href;
+  try {
+    return Buffer.from(match[1].replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8");
+  } catch {
+    return href;
+  }
+}
+
+export async function searchExact(
+  phrases: string[],
+  perPhrase: number,
+): Promise<Map<string, WebHit[]>> {
+  const instance = await browser();
+  const context = await instance.newContext({
+    userAgent: USER_AGENT,
+    viewport: { width: 1440, height: 900 },
+    locale: "en-US",
+  });
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, "webdriver", { get: () => undefined });
+  });
+
+  const page = await context.newPage();
+  page.setDefaultTimeout(30_000);
+  const found = new Map<string, WebHit[]>();
+
+  try {
+    for (const phrase of phrases) {
+      const query = encodeURIComponent(`"${phrase}"`);
+      try {
+        await page.goto(`https://www.bing.com/search?q=${query}&setlang=en&cc=US`, {
+          waitUntil: "domcontentloaded",
+          timeout: 45_000,
+        });
+        await page.waitForTimeout(2200);
+
+        const hits = await page.evaluate((take: number) => {
+          const body = document.body.innerText;
+          if (/There are no results|No results found|Showing results for|Search instead for/i.test(body)) {
+            return [];
+          }
+          return [...document.querySelectorAll("li.b_algo")]
+            .slice(0, take)
+            .flatMap((li) => {
+              const anchor = li.querySelector("h2 a") as HTMLAnchorElement | null;
+              if (!anchor) return [];
+              const snippet = (li as HTMLElement).innerText.replace(/\s+/g, " ").trim();
+              return [{ url: anchor.href, title: anchor.innerText.trim(), snippet }];
+            });
+        }, perPhrase);
+
+        found.set(
+          phrase,
+          hits.map((hit) => ({ url: decodeBing(hit.url), title: hit.title, snippet: hit.snippet })),
+        );
+      } catch {
+        found.set(phrase, []);
+      }
+      await page.waitForTimeout(900);
+    }
+  } finally {
+    await context.close().catch(() => undefined);
+  }
+
+  return found;
 }

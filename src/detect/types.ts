@@ -47,11 +47,16 @@ export interface PlagiarismMatch {
   path?: string;
   url: string;
   title: string;
+  similarity: string;
+  matched?: string;
 }
 
 export interface PlagiarismReport {
   provider: string;
   checked: number;
   matches: PlagiarismMatch[];
+  exactMatch?: number;
+  partialMatch?: number;
+  original?: number;
   note?: string;
 }

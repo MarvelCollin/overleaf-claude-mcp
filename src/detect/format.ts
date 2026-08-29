@@ -1,5 +1,5 @@
 import type { DetectResult } from "./engine.js";
-import type { FlaggedSentence, PlagiarismReport } from "./types.js";
+import type { FlaggedSentence, PlagiarismMatch, PlagiarismReport } from "./types.js";
 
 function band(percentage: number): string {
   if (percentage >= 80) return "very likely AI";
@@ -69,28 +69,45 @@ export function formatDetection(result: DetectResult, source: string, limit: num
   return lines.join("\n");
 }
 
-export function formatPlagiarism(report: PlagiarismReport, limit: number): string {
+export function formatPlagiarism(report: PlagiarismReport, source: string, limit: number): string {
+  const grouped = new Map<string, PlagiarismMatch[]>();
+  for (const match of report.matches) {
+    const list = grouped.get(match.sentence);
+    if (list) list.push(match);
+    else grouped.set(match.sentence, [match]);
+  }
+
   const lines = [
-    `${report.provider}: ${report.checked} passage(s) checked, ${report.matches.length} with a web match`,
+    `${source}, checked by ${report.provider}`,
+    `${report.checked} passage(s) searched, ${grouped.size} found verbatim on the web`,
   ];
+
+  if (report.exactMatch !== undefined) {
+    lines.push(`${report.exactMatch}% of searched passages matched a source, ${report.original ?? 0}% appear original`);
+  }
   if (report.note) lines.push(report.note);
 
-  if (report.matches.length === 0) {
-    lines.push("", "No verbatim web source was found for any checked passage.");
+  if (grouped.size === 0) {
+    lines.push("", "No searched passage was found verbatim on the web.");
     return lines.join("\n");
   }
 
   lines.push("");
-  for (const match of report.matches.slice(0, limit)) {
-    const at = match.path && match.line ? `${match.path}:${match.line}` : match.line ? `line ${match.line}` : "";
-    lines.push(`${at ? `${at}  ` : ""}${shorten(match.sentence, 120)}`);
-    lines.push(`  ${match.title}`);
-    lines.push(`  ${match.url}`);
+  let shown = 0;
+  for (const [sentence, hits] of grouped) {
+    if (shown >= limit) break;
+    shown += 1;
+    const first = hits[0] as PlagiarismMatch;
+    const at =
+      first.path && first.line ? `${first.path}:${first.line}` : first.line ? `line ${first.line}` : "";
+    lines.push(`${at ? `${at}  ` : ""}${shorten(sentence, 130)}`);
+    for (const hit of hits) lines.push(`  ${hit.title || hit.url}
+  ${hit.url}`);
     lines.push("");
   }
 
-  if (report.matches.length > limit) {
-    lines.push(`... ${report.matches.length - limit} more, raise limit to see them`);
+  if (grouped.size > shown) {
+    lines.push(`... ${grouped.size - shown} more, raise limit to see them`);
   }
 
   return lines.join("\n").trimEnd();

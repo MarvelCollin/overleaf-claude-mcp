@@ -1,8 +1,9 @@
 import fsp from "node:fs/promises";
 import { closeBrowser } from "../detect/browser.js";
 import { detect } from "../detect/engine.js";
-import { formatDetection } from "../detect/format.js";
+import { formatDetection, formatPlagiarism } from "../detect/format.js";
 import { extractProse } from "../detect/latex-text.js";
+import { checkPlagiarism } from "../detect/plagiarism.js";
 
 async function readInput(argument: string | undefined): Promise<{ text: string; source: string }> {
   if (argument && argument.length > 0) {
@@ -36,10 +37,19 @@ async function main(): Promise<void> {
     return;
   }
 
+  const path = source === "argument" || source === "stdin" ? undefined : source;
+
+  if (args.includes("--plagiarism")) {
+    const report = await checkPlagiarism({ text: prose.text, blocks: prose.blocks, path });
+    console.log(formatPlagiarism(report, source, 20));
+    await closeBrowser();
+    return;
+  }
+
   const result = await detect({
     text: prose.text,
     blocks: prose.blocks,
-    path: source === "argument" || source === "stdin" ? undefined : source,
+    path,
     providers: providers.length > 0 ? providers : undefined,
   });
 

@@ -1,8 +1,9 @@
 import { z } from "zod";
 import { DETECT_MIN_CHARS } from "../config.js";
 import { detect } from "../detect/engine.js";
-import { formatDetection } from "../detect/format.js";
+import { formatDetection, formatPlagiarism } from "../detect/format.js";
 import { extractProse } from "../detect/latex-text.js";
+import { checkPlagiarism } from "../detect/plagiarism.js";
 import { ALL_PROVIDERS } from "../detect/providers/index.js";
 import type { ProseBlock, ProseDocument } from "../detect/types.js";
 import { failure, guard, text } from "./registry.js";
@@ -31,6 +32,51 @@ function combine(documents: ProseDocument[]): ProseDocument {
   return { blocks, text: blocks.map((b) => b.text).join("\n\n") };
 }
 
+interface Gathered {
+  document: ProseDocument;
+  source: string;
+}
+
+async function gather(
+  ctx: Parameters<ToolModule>[1],
+  args: { text?: string; filePath?: string; wholeProject?: boolean; projectId?: string; plain?: boolean },
+): Promise<Gathered> {
+  if (args.text) {
+    let document = args.plain ? asPlain(args.text) : extractProse(args.text);
+    if (document.blocks.length === 0) document = asPlain(args.text);
+    return { document, source: "pasted text" };
+  }
+
+  if (args.wholeProject) {
+    const id = await ctx.activeProject(args.projectId);
+    const sources = (await ctx.workspace.sources(id)).filter((s) => /\.tex$/i.test(s.path));
+    if (sources.length === 0) throw new Error("no .tex files in this project");
+    return {
+      document: combine(sources.map((s) => tag(extractProse(s.content), s.path))),
+      source: `${sources.length} source file(s)`,
+    };
+  }
+
+  if (args.filePath) {
+    const id = await ctx.activeProject(args.projectId);
+    const content = await ctx.workspace.readText(id, args.filePath);
+    const parsed =
+      args.plain || !TEX_FILE.test(args.filePath) ? asPlain(content) : extractProse(content);
+    return { document: tag(parsed, args.filePath), source: args.filePath };
+  }
+
+  throw new Error("Pass text, filePath or wholeProject.");
+}
+
+function requireProse(document: ProseDocument): void {
+  const size = document.text.trim().length;
+  if (size < DETECT_MIN_CHARS) {
+    throw new Error(
+      `Only ${size} characters of prose to check, the checkers need at least ${DETECT_MIN_CHARS}.`,
+    );
+  }
+}
+
 export const registerDetectTools: ToolModule = (server, ctx) => {
   server.registerTool(
     "overleaf_ai_detect",
@@ -53,36 +99,14 @@ export const registerDetectTools: ToolModule = (server, ctx) => {
     },
     async ({ text: pasted, filePath, wholeProject, projectId, providers, plain, limit }) =>
       guard(async () => {
-        let document: ProseDocument;
-        let source: string;
-
-        if (pasted) {
-          document = plain ? asPlain(pasted) : extractProse(pasted);
-          if (document.blocks.length === 0) document = asPlain(pasted);
-          source = "pasted text";
-        } else if (wholeProject) {
-          const id = await ctx.activeProject(projectId);
-          const sources = (await ctx.workspace.sources(id)).filter((s) => /\.tex$/i.test(s.path));
-          if (sources.length === 0) return failure(new Error("no .tex files in this project"));
-          document = combine(sources.map((s) => tag(extractProse(s.content), s.path)));
-          source = `${sources.length} source file(s)`;
-        } else if (filePath) {
-          const id = await ctx.activeProject(projectId);
-          const content = await ctx.workspace.readText(id, filePath);
-          const parsed = plain || !TEX_FILE.test(filePath) ? asPlain(content) : extractProse(content);
-          document = tag(parsed, filePath);
-          source = filePath;
-        } else {
-          return failure(new Error("Pass text, filePath or wholeProject."));
-        }
-
-        if (document.text.trim().length < DETECT_MIN_CHARS) {
-          return failure(
-            new Error(
-              `Only ${document.text.trim().length} characters of prose to check, the detectors need at least ${DETECT_MIN_CHARS}.`,
-            ),
-          );
-        }
+        const { document, source } = await gather(ctx, {
+          text: pasted,
+          filePath,
+          wholeProject,
+          projectId,
+          plain,
+        });
+        requireProse(document);
 
         const result = await detect({
           text: document.text,
@@ -99,6 +123,49 @@ export const registerDetectTools: ToolModule = (server, ctx) => {
         }
 
         return text(formatDetection(result, source, limit ?? 25));
+      }),
+  );
+
+  server.registerTool(
+    "overleaf_plagiarism_check",
+    {
+      title: "Check text for plagiarism",
+      description:
+        "Search the web for verbatim copies of the sentences in the text and report which ones already exist online, with the source URL and the file and line the sentence came from. Sentences are searched as exact phrases, so a hit means the wording appears on that page word for word. Pass text to check a pasted passage, filePath to check one project file, or wholeProject to check every source file. LaTeX markup is stripped before checking.",
+      inputSchema: {
+        text: z.string().optional(),
+        filePath: z.string().optional(),
+        wholeProject: z.boolean().optional(),
+        projectId: z.string().optional(),
+        plain: z.boolean().optional().describe("skip LaTeX stripping and check the text as given"),
+        maxQueries: z
+          .number()
+          .int()
+          .positive()
+          .max(40)
+          .optional()
+          .describe("how many sentences to search, sampled evenly across the text, default 12"),
+        limit: z.number().int().positive().max(200).optional(),
+      },
+    },
+    async ({ text: pasted, filePath, wholeProject, projectId, plain, maxQueries, limit }) =>
+      guard(async () => {
+        const { document, source } = await gather(ctx, {
+          text: pasted,
+          filePath,
+          wholeProject,
+          projectId,
+          plain,
+        });
+        requireProse(document);
+
+        const report = await checkPlagiarism({
+          text: document.text,
+          blocks: document.blocks,
+          maxQueries,
+        });
+
+        return text(formatPlagiarism(report, source, limit ?? 25));
       }),
   );
 
