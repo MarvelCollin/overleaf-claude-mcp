@@ -5,7 +5,7 @@ import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 
 const ROOT = path.resolve(fileURLToPath(import.meta.url), "../..");
-const ENTRY = path.join(ROOT, "dist", "index.js");
+const ENTRY = process.env.OVERLEAF_MCP_ENTRY ?? path.join(ROOT, "dist", "index.js");
 
 const EXPECTED = [
   "overleaf_status",

@@ -3,8 +3,9 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { AppContext } from "./context.js";
 import { registerTools } from "./tools/index.js";
+import { VERSION } from "./version.js";
 
-const SERVER_INFO = { name: "overleaf-claude-mcp", version: "0.2.0" };
+const SERVER_INFO = { name: "overleaf-claude-mcp", version: VERSION };
 
 async function main(): Promise<void> {
   const server = new McpServer(SERVER_INFO);

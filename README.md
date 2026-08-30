@@ -20,6 +20,20 @@ Overleaf has no public API on the free tier: the Git bridge and Dropbox sync are
 - An Overleaf account, free tier is fine
 - Claude Code (`claude --version`) or Claude Desktop
 
+### Install from npm, and stay up to date on your own
+
+If you only want to *use* the server, you do not need this repository at all. Register it straight from npm:
+
+```bash
+claude mcp add overleaf -- npx -y overleaf-claude-mcp@latest
+```
+
+Then run `npm run login:paste` once from anywhere, or ask Claude to call `overleaf_set_session` with your `overleaf_session2` cookie, and you are done.
+
+Because the registration resolves `@latest`, every Claude restart picks up the newest published version. There is nothing to pull and nothing to rebuild. Two things to know: it costs a registry lookup at startup, so a machine with no network will fail to start the server, and the AI detector that drives a real browser needs its Chromium once, with `npx playwright install chromium`.
+
+Everything below is for working on the server, or for running it from a clone.
+
 ### Step 1: Run setup
 
 From this folder, on Windows:
@@ -121,6 +135,19 @@ If you skipped it, or you use a different client, register by hand. For **Claude
 }
 ```
 
+### Updating
+
+How a new version reaches you depends on how you installed it.
+
+| Installed with | To get a new version |
+| --- | --- |
+| `npx -y overleaf-claude-mcp@latest` | Restart Claude. Nothing else. |
+| A clone of this repository | `npm run update`, then restart Claude |
+
+`npm run update` pulls, installs and rebuilds in one step. Doing only `git pull` is not enough and fails quietly: `dist/` is not tracked, so Claude keeps running the previously built server while the source on disk looks current.
+
+Either way a restart is required, because MCP servers are only loaded when the client starts. Your Overleaf session is not affected by an update; it lives in `~/.overleaf-claude-mcp/`, outside the code.
+
 ### Step 4: Restart Claude
 
 MCP servers are only picked up at startup. Quit and reopen Claude Code or Claude Desktop.
@@ -208,7 +235,8 @@ If Claude does not reach for the tools, the usual causes are: you did not restar
 
 #### Edits are checked for silent damage
 
-`overleaf_write_file` and `overleaf_edit_file` compare the file before and after every write and report anything that changed beyond wording: a number that moved or vanished, a dropped `\cite`, `ef` or `\label`, an unbalanced `egin`. Rewording a paragraph passes silently. Losing a figure from a table, or a citation from a sentence, comes back as a warning on the tool result, so a prose edit cannot quietly corrupt a manuscript.
+`overleaf_write_file` and `overleaf_edit_file` compare the file before and after every write and report anything that changed beyond wording: a number that moved or vanished, a dropped `\cite`, `
+ef` or `\label`, an unbalanced `egin`. Rewording a paragraph passes silently. Losing a figure from a table, or a citation from a sentence, comes back as a warning on the tool result, so a prose edit cannot quietly corrupt a manuscript.
 
 ### Checking for AI detection and plagiarism
 
@@ -382,6 +410,7 @@ Confirmed live against a real account, not assumed:
 | `npm run recon` | Read-only probe of every endpoint |
 | `npm run smoke` | End-to-end write test in a throwaway project |
 | `npm run build` | Compile to `dist/` |
+| `npm run update` | Pull, install and rebuild a clone in one step |
 | `npm test` | Offline parser and detector assertions, no network, no credentials |
 | `npm run detect -- <file or text>` | Run the AI detectors from the terminal |
 | `npm run detect -- <file> --plagiarism` | Run the plagiarism check from the terminal |
@@ -411,6 +440,19 @@ All optional. Copy `.env.example` to `.env` in this folder and it is loaded on s
 | `OVERLEAF_DETECT_HEADLESS` | `true` | Set `false` to watch the detector pages being driven |
 | `SAPLING_API_KEY` | unset | Enables the Sapling detector |
 | `GPTZERO_API_KEY` | unset | Enables the GPTZero detector |
+
+## Releasing
+
+Publishing is automatic. Bump the version, tag it, and push the tag:
+
+```bash
+npm version patch
+git push --follow-tags
+```
+
+The `Release` workflow then typechecks, builds, runs the assertions, verifies the server starts, and publishes to npm with provenance. It refuses to publish if the tag and `package.json` disagree. Everyone on the `npx` registration gets the new version the next time they restart Claude.
+
+This needs one repository secret, `NPM_TOKEN`, holding an npm automation token with publish rights.
 
 ## Project
 
