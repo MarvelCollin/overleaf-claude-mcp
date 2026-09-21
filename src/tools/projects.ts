@@ -106,6 +106,7 @@ export const registerProjectTools: ToolModule = (server, ctx) => {
     },
     async () =>
       guard(async () => {
+        await ctx.adoptEnvCookie();
         const found = await ctx.session.load();
         if (!found || !ctx.session.hasSessionCookie()) {
           return text(

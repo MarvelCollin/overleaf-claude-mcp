@@ -79,6 +79,10 @@ export class SessionStore {
     this.dirty = true;
   }
 
+  cookieValue(name: string): string | undefined {
+    return this.cookies.get(name)?.value;
+  }
+
   hasSessionCookie(): boolean {
     return SESSION_COOKIE_NAMES.some((name) => this.cookies.has(name));
   }

@@ -1,4 +1,5 @@
 import { AuthError, SessionStore } from "./auth/session.js";
+import { parseCookieInput, saveAndVerify } from "./auth/paste.js";
 import { OverleafClient } from "./overleaf/client.js";
 import { Artifacts } from "./overleaf/artifacts.js";
 import { Workspace } from "./overleaf/workspace.js";
@@ -12,6 +13,7 @@ export class AppContext {
   readonly state: ProjectState;
 
   private sessionLoaded = false;
+  private envCookieChecked = false;
 
   constructor() {
     this.session = new SessionStore();
@@ -21,11 +23,30 @@ export class AppContext {
     this.state = new ProjectState();
   }
 
+  async adoptEnvCookie(): Promise<void> {
+    if (this.envCookieChecked) return;
+    this.envCookieChecked = true;
+    const raw = process.env.OVERLEAF_SESSION_COOKIE?.trim();
+    if (!raw) return;
+    const incoming = parseCookieInput(raw);
+    await this.session.load();
+    if (incoming.every((c) => this.session.cookieValue(c.name) === c.value)) return;
+    try {
+      await saveAndVerify(incoming);
+    } catch (err) {
+      if (this.session.hasSessionCookie()) return;
+      throw new AuthError(
+        `OVERLEAF_SESSION_COOKIE was rejected. ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
   async ensureSession(): Promise<void> {
     if (this.sessionLoaded) {
       await this.session.reloadIfChanged();
       return;
     }
+    await this.adoptEnvCookie();
     const found = await this.session.load();
     if (!found || !this.session.hasSessionCookie()) {
       throw new AuthError(

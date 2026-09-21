@@ -34,6 +34,16 @@ Because the registration resolves `@latest`, every Claude restart picks up the n
 
 Everything below is for working on the server, or for running it from a clone.
 
+### Pass the cookie when you register
+
+The server also reads `OVERLEAF_SESSION_COOKIE` when it starts. When that value differs from the saved session, it is verified against Overleaf and saved, so a fresh cookie only needs a new registration and a restart:
+
+```bash
+claude mcp add overleaf -e OVERLEAF_SESSION_COOKIE="s%3A..." -- node C:/path/to/overleaf-claude-mcp/dist/index.js
+```
+
+If Overleaf rejects the value, the server keeps using the saved session.
+
 ### Step 1: Run setup
 
 From this folder, on Windows:
